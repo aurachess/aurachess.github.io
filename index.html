@@ -1,0 +1,2324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AuraChess - Premium Chess Experience</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase JS SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #12110e;
+            --card-bg: #1e1d1b;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --chess-green: #81b64c;
+            --chess-green-hover: #a3d168;
+            --chess-dark-square: #739552;
+            --chess-light-square: #ebedd0;
+            --input-bg: #272522;
+            --danger-color: #ef4444;
+            --gold-accent: #f59e0b;
+            --btn-glow: rgba(129, 182, 76, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            width: 100%;
+            height: 50px;
+            padding: 0 16px;
+            background: #191815;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--card-border);
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.5px;
+            cursor: pointer;
+        }
+
+        .logo i { color: var(--chess-green); }
+
+        .menu-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .menu-btn:hover { background: rgba(255,255,255,0.05); }
+
+        body.in-game nav { display: none !important; }
+        body.in-game main {
+            padding: 0 !important;
+            max-width: 100% !important;
+            height: calc(100vh - 50px) !important;
+            overflow: hidden !important;
+        }
+
+        .drawer-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            display: none;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease forwards;
+        }
+
+        .drawer-sidebar {
+            position: fixed;
+            top: 0; right: 0;
+            width: 280px; height: 100%;
+            background: #191815;
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 24px 18px;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--card-border);
+            visibility: hidden;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+        }
+
+        .drawer-sidebar.open { 
+            transform: translateX(0); 
+            visibility: visible;
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .drawer-menu-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .drawer-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .drawer-menu-item:hover {
+            background: var(--input-bg);
+            color: var(--chess-green);
+        }
+
+        main {
+            flex: 1;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 12px 12px 75px 12px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page { display: none; width: 100%; height: 100%; }
+        .page.active { display: flex; flex-direction: column; animation: fadeIn 0.25s ease-in-out; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-title {
+            font-size: 22px;
+            font-weight: 800;
+            margin: 12px 0 20px 2px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .auth-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 24px 20px;
+            margin-top: 10px;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
+        .input-group { margin-bottom: 18px; }
+        .input-group label {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: var(--chess-green); }
+
+        .btn-green {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            background: linear-gradient(180deg, #95c85b 0%, var(--chess-green) 100%);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 0 #588232, 0 6px 15px var(--btn-glow);
+            transition: all 0.15s ease;
+        }
+
+        .btn-green:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #588232;
+        }
+
+        .btn-green:hover { background: var(--chess-green-hover); }
+
+        .btn-secondary {
+            background: #272522 !important;
+            color: var(--text-primary) !important;
+            box-shadow: 0 4px 0 #181715 !important;
+            border: 1px solid var(--card-border) !important;
+        }
+
+        .podium-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 10px;
+            margin-bottom: 24px;
+            padding-top: 25px;
+            width: 100%;
+        }
+
+        .podium-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 16px 10px;
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .podium-card.rank-1 { order: 2; transform: translateY(-10px); border-color: rgba(251, 191, 36, 0.5); }
+        .podium-card.rank-2 { order: 1; border-color: rgba(226, 232, 240, 0.4); }
+        .podium-card.rank-3 { order: 3; border-color: rgba(217, 119, 6, 0.4); }
+
+        .crown-icon { position: absolute; top: -18px; font-size: 22px; }
+        .rank-1 .crown-icon { color: #fbbf24; }
+        .rank-2 .crown-icon { color: #cbd5e1; }
+        .rank-3 .crown-icon { color: #d97706; }
+
+        .podium-avatar {
+            width: 52px; height: 52px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--card-border);
+            margin-bottom: 8px;
+            background: var(--input-bg);
+        }
+
+        .rank-1 .podium-avatar { border-color: #fbbf24; width: 64px; height: 64px; }
+
+        .podium-name {
+            font-weight: 700; font-size: 13px;
+            color: var(--text-primary);
+            max-width: 90px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .podium-score {
+            font-size: 12px; font-weight: 800;
+            color: var(--chess-green); margin-top: 4px;
+        }
+
+        .lb-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 14px 18px;
+            margin-bottom: 10px;
+            display: flex; align-items: center;
+            justify-content: space-between;
+            border: 1px solid var(--card-border);
+        }
+
+        .user-avatar {
+            width: 40px; height: 40px;
+            border-radius: 50%; object-fit: cover;
+            background: var(--input-bg);
+        }
+
+        .lb-rank-num {
+            font-weight: 800; font-size: 14px;
+            width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 8px; background: var(--input-bg);
+            color: var(--text-secondary);
+        }
+
+        nav {
+            position: fixed; bottom: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 100%; max-width: 600px;
+            background: #191815;
+            display: flex; justify-content: space-around;
+            align-items: center; padding: 6px 12px;
+            z-index: 900; border-top: 1px solid var(--card-border);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+        }
+
+        .nav-item {
+            background: none; border: none;
+            color: var(--text-secondary);
+            display: flex; flex-direction: column;
+            align-items: center; gap: 4px;
+            font-size: 11px; font-weight: 700;
+            cursor: pointer; padding: 6px 20px;
+            border-radius: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active { color: #ffffff; background: #272522; }
+        .nav-item.active i { color: var(--chess-green); }
+        .nav-item i { font-size: 18px; }
+
+        .app-container {
+            width: 100%; 
+            height: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: var(--bg-color);
+            display: flex; 
+            flex-direction: column;
+            justify-content: center; 
+            align-items: center;
+            padding: 8px;
+            position: relative; 
+            box-sizing: border-box;
+            gap: 6px;
+        }
+
+        .player-bar {
+            display: flex; justify-content: space-between;
+            align-items: center; height: 44px; padding: 4px 12px;
+            background: #1e1d1b; border-radius: 10px;
+            flex-shrink: 0;
+            width: 100%;
+            max-width: calc(100vh - 220px);
+            border: 1px solid var(--card-border);
+            transition: transform 0.4s ease, background 0.3s ease;
+        }
+
+        .player-bar.turn-active {
+            border-color: var(--chess-green);
+            background: #272b22;
+        }
+
+        .player-bar.rotate-top-player {
+            transform: rotate(180deg);
+        }
+
+        .player-info { display: flex; align-items: center; gap: 10px; }
+
+        .avatar {
+            width: 32px; height: 32px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; background: #2a2926;
+            border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;
+        }
+
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .username { color: #ffffff; font-size: 13px; font-weight: 700; }
+
+        .timer {
+            font-size: 13px; font-weight: 800;
+            padding: 4px 8px; border-radius: 8px;
+            font-variant-numeric: tabular-nums;
+            background-color: #12110e; color: #8c8a88;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .timer-active { background-color: #ffffff !important; color: #111111 !important; box-shadow: 0 0 10px rgba(255,255,255,0.4); }
+
+        .board-wrapper {
+            position: relative; 
+            width: 100%;
+            max-width: calc(100vh - 220px);
+            max-height: calc(100vh - 220px);
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.8);
+            border-radius: 8px; 
+            overflow: hidden;
+            flex-shrink: 1;
+            flex-grow: 0;
+            border: 2px solid #2d2a26;
+        }
+
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: 100%; height: 100%; position: relative;
+        }
+
+        .square {
+            position: relative; display: flex;
+            justify-content: center; align-items: center;
+            width: 100%; height: 100%; cursor: pointer;
+        }
+
+        .light { background-color: var(--chess-light-square); }
+        .dark { background-color: var(--chess-dark-square); }
+
+        .square.selected { background-color: rgba(245, 245, 66, 0.75) !important; }
+        .square.premove-from { background-color: rgba(186, 85, 211, 0.6) !important; }
+        .square.premove-to { background-color: rgba(147, 112, 219, 0.8) !important; }
+        .square.check-highlight { background-color: #e11d48 !important; }
+
+        .move-hint {
+            position: absolute; 
+            width: 28%; height: 28%;
+            background-color: rgba(0, 0, 0, 0.25);
+            border-radius: 50%; 
+            pointer-events: none; 
+            z-index: 10;
+        }
+
+        .capture-hint {
+            position: absolute; 
+            width: 100%; height: 100%;
+            border: 5px solid rgba(0, 0, 0, 0.25);
+            border-radius: 50%; 
+            box-sizing: border-box;
+            pointer-events: none; 
+            z-index: 10;
+        }
+
+        .piece {
+            width: 95%; height: 95%;
+            object-fit: contain;
+            z-index: 5; position: absolute;
+            top: 2.5%; left: 2.5%;
+            cursor: grab;
+            filter: drop-shadow(0px 6px 4px rgba(0, 0, 0, 0.45));
+            transition: transform 0.1s ease;
+            touch-action: none;
+        }
+
+        .piece:active {
+            cursor: grabbing;
+        }
+
+        .piece.dragging {
+            opacity: 0.95;
+            z-index: 1000 !important;
+            cursor: grabbing;
+            pointer-events: none;
+            transition: none !important;
+            transform: scale(1.15) translateY(-10px) !important;
+            filter: drop-shadow(0px 12px 10px rgba(0, 0, 0, 0.5));
+        }
+
+        .piece.piece-flipped {
+            transform: rotate(180deg);
+        }
+
+        .promotion-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none; justify-content: center;
+            align-items: center; z-index: 500;
+            backdrop-filter: blur(4px);
+        }
+
+        .promotion-box {
+            background: #1e1d1b;
+            border: 2px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px; display: flex;
+            gap: 10px;
+        }
+
+        .promotion-option {
+            width: 50px; height: 50px;
+            background: var(--input-bg);
+            border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center;
+            justify-content: center;
+            transition: transform 0.15s;
+        }
+
+        .promotion-option:hover { transform: scale(1.1); }
+        .promotion-option img { width: 85%; height: 85%; object-fit: contain; }
+
+        .game-over-modal {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 1000; padding: 20px; text-align: center;
+        }
+
+        .game-over-card {
+            background: #1e1d1b;
+            border: 2px solid var(--card-border);
+            border-radius: 20px; padding: 24px;
+            width: 90%; max-width: 320px;
+            display: flex; flex-direction: column; align-items: center;
+            animation: scaleUp 0.25s ease forwards;
+        }
+
+        @keyframes scaleUp {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .online-modal-content {
+            position: fixed; bottom: -100%; left: 0;
+            width: 100vw; height: 80vh;
+            background: #191815;
+            border-radius: 24px 24px 0 0;
+            padding: 20px; z-index: 2000;
+            transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .online-modal-content.open { bottom: 0; }
+
+        .online-user-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px; padding: 12px 16px;
+            margin-bottom: 10px; display: flex;
+            align-items: center; justify-content: space-between;
+        }
+
+        .online-status-dot {
+            width: 10px; height: 10px;
+            background: #22c55e; border-radius: 50%;
+            display: inline-block; box-shadow: 0 0 8px #22c55e;
+        }
+
+        .chess-actions-bar { display: flex; gap: 10px; margin-top: 8px; }
+
+        .diff-btn {
+            flex: 1; padding: 10px;
+            border-radius: 10px; border: 1px solid var(--card-border);
+            background: var(--input-bg); color: var(--text-primary);
+            font-weight: 700; font-size: 12px; cursor: pointer; text-align: center;
+            transition: all 0.2s;
+        }
+
+        .diff-btn.active {
+            background: var(--chess-green); color: #fff; border-color: var(--chess-green);
+            box-shadow: 0 0 10px var(--btn-glow);
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.8);
+            display: flex; justify-content: center;
+            align-items: center; z-index: 2000; padding: 20px;
+            animation: fadeIn 0.2s ease forwards;
+        }
+
+        .modal-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px; padding: 24px;
+            width: 100%; max-width: 380px; text-align: center;
+        }
+
+        .play-menu-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .control-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            width: 100%;
+            max-width: calc(100vh - 220px);
+            flex-shrink: 0;
+            height: 40px;
+        }
+
+        .btn-ctrl {
+            flex: 1;
+            height: 100%;
+            padding: 0 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid var(--card-border);
+            background: #252320;
+            color: var(--text-primary);
+            box-shadow: 0 3px 0 #141311;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .btn-ctrl:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #141311;
+        }
+
+        .btn-ctrl-danger { 
+            color: #f87171; 
+            border-color: rgba(239, 68, 68, 0.2);
+            background: #2a1b1b;
+            box-shadow: 0 3px 0 #1c1111;
+        }
+
+        .chat-drawer {
+            position: fixed;
+            bottom: -100%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 600px;
+            height: 60vh;
+            background: #191815;
+            border-radius: 20px 20px 0 0;
+            border: 1px solid var(--card-border);
+            z-index: 2100;
+            display: flex;
+            flex-direction: column;
+            transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+
+        .chat-drawer.open { bottom: 0; }
+
+        .chat-header {
+            padding: 14px 16px;
+            background: #1e1d1b;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .chat-body {
+            flex: 1;
+            padding: 12px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chat-msg {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            word-wrap: break-word;
+        }
+
+        .chat-msg.mine {
+            align-self: flex-end;
+            background: var(--chess-green);
+            color: #fff;
+            border-bottom-right-radius: 2px;
+        }
+
+        .chat-msg.other {
+            align-self: flex-start;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            border-bottom-left-radius: 2px;
+            border: 1px solid var(--card-border);
+        }
+
+        .chat-input-bar {
+            padding: 10px 12px;
+            background: #1e1d1b;
+            border-top: 1px solid var(--card-border);
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--danger-color);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 800;
+            display: none;
+        }
+
+        .profile-avatar-container {
+            position: relative;
+            width: 96px;
+            height: 96px;
+            margin: 0 auto 18px auto;
+            cursor: pointer;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 3px solid var(--chess-green);
+            box-shadow: 0 0 15px rgba(129, 182, 76, 0.4);
+            transition: transform 0.2s, filter 0.2s;
+        }
+
+        .profile-avatar-container:hover {
+            transform: scale(1.03);
+            filter: brightness(1.1);
+        }
+
+        .avatar-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .profile-avatar-container:hover .avatar-overlay {
+            opacity: 1;
+        }
+
+        .avatar-overlay i {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header id="main-header">
+        <div class="logo" onclick="switchChessPage('chess-play')">
+            <i class="fa-solid fa-chess-knight"></i>
+            <span>AuraChess</span>
+        </div>
+        <button class="menu-btn" id="header-menu-btn" onclick="toggleDrawer(true)" style="display: none;">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+    </header>
+
+    <!-- DRAWER SIDEBAR -->
+    <div class="drawer-overlay" id="drawer-overlay" onclick="toggleDrawer(false)"></div>
+    <div class="drawer-sidebar" id="drawer-sidebar">
+        <div class="drawer-header">
+            <span style="font-weight: 800; font-size: 18px;">Menu</span>
+            <button class="menu-btn" onclick="toggleDrawer(false)"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="drawer-menu-list">
+            <div class="drawer-menu-item" onclick="switchChessPage('chess-play'); toggleDrawer(false);">
+                <i class="fa-solid fa-gamepad"></i> <span>Play Area</span>
+            </div>
+            <div class="drawer-menu-item" onclick="switchChessPage('chess-leaderboard'); toggleDrawer(false);">
+                <i class="fa-solid fa-trophy"></i> <span>Leaderboard</span>
+            </div>
+            <div class="drawer-menu-item" onclick="switchChessPage('profile'); toggleDrawer(false);">
+                <i class="fa-solid fa-user-gear"></i> <span>Profile Settings</span>
+            </div>
+        </div>
+        <div style="margin-top: auto;">
+            <button class="btn-green btn-secondary" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+        </div>
+    </div>
+
+    <main>
+        <!-- AUTH PAGE -->
+        <div id="page-auth" class="page active">
+            <div class="auth-card">
+                <h2 class="auth-title" id="txt-auth-head" style="text-align: center; margin-bottom: 20px;">Sign Up / Login</h2>
+                
+                <div id="signup-form">
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="signup-user" class="form-input" placeholder="e.g. ratul">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="signup-pass" class="form-input" placeholder="••••••••">
+                    </div>
+                    <button class="btn-green" type="button" onclick="registerUser()">Sign Up</button>
+                    <p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary);">
+                        Already have an account? <a href="javascript:void(0)" onclick="toggleAuth(false)" style="color: var(--chess-green); font-weight:700; text-decoration:none;">Login</a>
+                    </p>
+                </div>
+
+                <div id="login-form" style="display: none;">
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="login-user" class="form-input" placeholder="Username">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="login-pass" class="form-input" placeholder="••••••••">
+                    </div>
+                    <button class="btn-green" type="button" onclick="loginUser()">Login</button>
+                    <p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary);">
+                        Don't have an account? <a href="javascript:void(0)" onclick="toggleAuth(true)" style="color: var(--chess-green); font-weight:700; text-decoration:none;">Sign Up</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHESS PLAY PAGE -->
+        <div id="page-chess-play" class="page">
+            <div id="play-options-card" class="auth-card" style="margin-bottom: 20px;">
+                <h3 style="margin-bottom: 16px; font-weight: 800; text-align: center;">Select Game Mode</h3>
+                
+                <div class="play-menu-container">
+                    <button class="btn-green" onclick="startBotMatch()"><i class="fa-solid fa-robot"></i> Play vs Computer</button>
+                    <button class="btn-green btn-secondary" style="border-color: var(--chess-green) !important; color: var(--chess-green) !important;" onclick="startPassAndPlayMatch()"><i class="fa-solid fa-users"></i> Play offline</button>
+                    <button class="btn-green btn-secondary" onclick="openOnlinePlayersSection()"><i class="fa-solid fa-user-group"></i> Play with Friends</button>
+                </div>
+
+                <div id="bot-diff-container">
+                    <label style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);">Bot Difficulty:</label>
+                    <div class="chess-actions-bar">
+                        <button class="diff-btn active" id="diff-easy" onclick="setBotDifficulty('easy')">EASY</button>
+                        <button class="diff-btn" id="diff-normal" onclick="setBotDifficulty('normal')">NORMAL</button>
+                        <button class="diff-btn" id="diff-hard" onclick="setBotDifficulty('hard')">HARD</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHESS BOARD ARENA -->
+            <div id="game-arena" style="display: none; width: 100%; height: 100%;">
+                <div class="app-container">
+                    <!-- TOP PLAYER BAR -->
+                    <div class="player-bar" id="player-bar-top">
+                        <div class="player-info">
+                            <div class="avatar">
+                                <img id="chess-top-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=BOT" alt="Opponent">
+                            </div>
+                            <div class="username-container">
+                                <span class="username" id="chess-top-name">BOT</span>
+                            </div>
+                        </div>
+                        <div id="timer-top" class="timer">10:00</div>
+                    </div>
+
+                    <!-- CHESS BOARD CONTAINER -->
+                    <div class="board-wrapper">
+                        <div class="chessboard" id="board"></div>
+
+                        <!-- PAWN PROMOTION OVERLAY -->
+                        <div class="promotion-overlay" id="promotion-overlay">
+                            <div class="promotion-box" id="promotion-box"></div>
+                        </div>
+
+                        <!-- GAME OVER OVERLAY -->
+                        <div class="game-over-modal" id="game-over-modal">
+                            <div class="game-over-card">
+                                <i class="fa-solid fa-trophy" style="font-size: 48px; color: var(--gold-accent); margin-bottom: 12px;"></i>
+                                <div id="game-over-title" style="font-size: 24px; font-weight: 800; color: #fff;">CHECKMATE</div>
+                                <div id="game-over-subtitle" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">White Wins</div>
+                                <button class="btn-green" style="width:100%;" onclick="exitGameToHome()"><i class="fa-solid fa-house"></i> Main Menu</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM PLAYER BAR -->
+                    <div class="player-bar" id="player-bar-bottom">
+                        <div class="player-info">
+                            <div class="avatar">
+                                <img id="chess-bottom-avatar" src="" alt="Player">
+                            </div>
+                            <div class="username-container">
+                                <span class="username" id="chess-bottom-name">Player</span>
+                            </div>
+                        </div>
+                        <div id="timer-bottom" class="timer timer-active">10:00</div>
+                    </div>
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="control-bar">
+                        <button class="btn-ctrl btn-ctrl-danger" onclick="resignGame()">
+                            <i class="fa-solid fa-flag"></i> Resign
+                        </button>
+                        <button class="btn-ctrl" id="btn-open-chat" style="display:none;" onclick="toggleChatDrawer(true)">
+                            <i class="fa-solid fa-comments"></i> Chat
+                            <span class="chat-badge" id="chat-unread-badge">0</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LEADERBOARD PAGE -->
+        <div id="page-chess-leaderboard" class="page">
+            <h2 class="page-title">
+                Top 10 Leaders
+                <i class="fa-solid fa-chess-king" style="color: var(--gold-accent);"></i>
+            </h2>
+            <div id="chess-lb-podium" class="podium-wrapper"></div>
+            <div id="chess-lb-list"></div>
+        </div>
+
+        <!-- PROFILE PAGE -->
+        <div id="page-profile" class="page">
+            <div class="auth-card" style="text-align: center;">
+                <h2 style="margin-bottom: 20px;">Profile Settings</h2>
+
+                <!-- PROFILE AVATAR WRAPPER -->
+                <div class="profile-avatar-container" onclick="document.getElementById('profile-file-input').click()">
+                    <img id="profile-img" src="" style="width:100%; height:100%; object-fit: cover;">
+                    <div class="avatar-overlay">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>Change</span>
+                    </div>
+                </div>
+
+                <!-- HIDDEN FILE INPUT FOR GALLERY SELECT -->
+                <input type="file" id="profile-file-input" accept="image/*" style="display:none;" onchange="uploadProfilePicture(event)">
+
+                <div class="input-group" style="text-align: left;">
+                    <label>Username</label>
+                    <input type="text" id="edit-user" class="form-input" readonly>
+                </div>
+                <button class="btn-green btn-secondary" style="margin-top: 10px;" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- IN-GAME LIVE CHAT DRAWER -->
+    <div class="drawer-overlay" id="chat-overlay" onclick="toggleChatDrawer(false)"></div>
+    <div class="chat-drawer" id="chat-drawer">
+        <div class="chat-header">
+            <span style="font-weight: 800;"><i class="fa-solid fa-comments" style="color:var(--chess-green);"></i> Match Chat</span>
+            <button class="menu-btn" onclick="toggleChatDrawer(false)"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="chat-body" id="chat-messages-container"></div>
+        <div class="chat-input-bar">
+            <input type="text" id="chat-input-text" class="form-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="btn-green" style="width: auto; padding: 10px 18px; margin-top: 0;" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <!-- ONLINE FRIENDS MODAL OVERLAY -->
+    <div class="drawer-overlay" id="online-modal-overlay" onclick="closeOnlinePlayersSection()"></div>
+    <div class="online-modal-content" id="online-players-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-weight: 800; font-size: 18px;"><i class="fa-solid fa-user-group" style="color:var(--chess-green);"></i> Online Friends</h3>
+            <button class="btn-ctrl" style="width:auto; padding:6px 14px;" onclick="closeOnlinePlayersSection()"><i class="fa-solid fa-xmark"></i> Close</button>
+        </div>
+        <div id="online-friends-list" style="overflow-y: auto; flex: 1;"></div>
+    </div>
+
+    <!-- NAVIGATION BAR -->
+    <nav id="nav-bar-chess" style="display: none;">
+        <button class="nav-item active" id="nav-btn-chess-play" onclick="switchChessPage('chess-play')">
+            <i class="fa-solid fa-gamepad"></i> <span>Play</span>
+        </button>
+        <button class="nav-item" id="nav-btn-chess-leaderboard" onclick="switchChessPage('chess-leaderboard')">
+            <i class="fa-solid fa-ranking-star"></i> <span>Leaderboard</span>
+        </button>
+    </nav>
+
+    <!-- INVITATION MODAL -->
+    <div id="invite-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <i class="fa-solid fa-chess-knight" style="font-size: 40px; color: var(--chess-green); margin-bottom: 12px;"></i>
+            <h3 style="font-size: 18px; margin-bottom: 8px;">Chess Challenge!</h3>
+            <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;" id="txt-invite-desc">A player challenges you to a game.</p>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-green" style="flex:1;" onclick="acceptInvite()"><i class="fa-solid fa-check"></i> Accept</button>
+                <button class="btn-green btn-secondary" style="flex:1;" onclick="denyInvite()"><i class="fa-solid fa-xmark"></i> Deny</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+
+        function sanitizeUser(u) {
+            return u ? String(u).toLowerCase().trim().replace(/[\.\#\$\[\]\/]/g, "_") : "";
+        }
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAQhlRh5xHTe2BkjF-_hZ3QaAadiL26KLo",
+            authDomain: "auraquiz-c036e.firebaseapp.com",
+            databaseURL: "https://auraquiz-c036e-default-rtdb.firebaseio.com",
+            projectId: "auraquiz-c036e",
+            storageBucket: "auraquiz-c036e.firebasestorage.app",
+            messagingSenderId: "961673369155",
+            appId: "1:961673369155:web:336404ae1f34eab0a066f6",
+            measurementId: "G-R7MFH8GTGT"
+        };
+        
+        let db = null;
+        try {
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+        } catch(e) { console.error("Firebase init failed:", e); }
+
+        let currentUser = null;
+        let chessGame = null;
+        let selectedSquare = null;
+        let legalMoves = [];
+        let whiteTime = 600;
+        let blackTime = 600;
+        let lastMoveTime = null;
+        let chessTimerInterval = null;
+        let botDifficulty = 'easy';
+        let isPlayingBot = true;
+        let isPassAndPlay = false;
+        let playerColor = 'w';
+        let opponentName = 'Opponent';
+        let pendingInvite = null;
+        let activeGameRef = null;
+        let chatRef = null;
+        let unreadChatCount = 0;
+        let isGameOver = false;
+        let pendingPromotion = null;
+        let inviteCooldowns = {};
+
+        // Dragging & Premove variables
+        let draggedPieceEl = null;
+        let dragStartSquare = null;
+        let premove = null; // { from: 'e2', to: 'e4' }
+
+        let audioCtx = null;
+        function initAudio() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch(e) {}
+        }
+
+        function playSound(type) {
+            try {
+                initAudio();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain); 
+                gain.connect(audioCtx.destination);
+                
+                if (type === 'move') {
+                    osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+                } else if (type === 'capture') {
+                    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.12);
+                } else if (type === 'check') {
+                    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+                }
+            } catch(e) {}
+        }
+
+        const PIECES_IMG = {
+            'r': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/br.png',
+            'n': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bn.png',
+            'b': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bb.png',
+            'q': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bq.png',
+            'k': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bk.png',
+            'p': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bp.png',
+            'R': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wr.png',
+            'N': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wn.png',
+            'B': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wb.png',
+            'Q': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wq.png',
+            'K': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wk.png',
+            'P': 'https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wp.png'
+        };
+
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+        window.onload = function() {
+            const savedUser = localStorage.getItem('aura_user');
+            if(savedUser) {
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    if(!currentUser || !currentUser.username) throw new Error("Invalid User Object");
+                    initApp();
+                } catch(e) {
+                    localStorage.removeItem('aura_user');
+                    showPage('page-auth');
+                }
+            } else {
+                showPage('page-auth');
+            }
+
+            document.body.addEventListener('click', () => initAudio(), { once: true });
+            document.body.addEventListener('touchstart', () => initAudio(), { once: true });
+
+            // Global pointer listeners for floating drag functionality
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('pointercancel', onPointerUp);
+        };
+
+        function initApp() {
+            if (!currentUser) return;
+            const safeName = sanitizeUser(currentUser.username);
+            document.getElementById('edit-user').value = currentUser.username;
+            document.getElementById('profile-img').src = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(safeName)}`;
+            
+            document.getElementById('header-menu-btn').style.display = 'block';
+            document.getElementById('nav-bar-chess').style.display = 'flex';
+
+            listenToPresence();
+            listenToInvitations();
+            switchChessPage('chess-play');
+        }
+
+        function uploadProfilePicture(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    const maxDim = 200;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxDim) {
+                            height *= maxDim / width;
+                            width = maxDim;
+                        }
+                    } else {
+                        if (height > maxDim) {
+                            width *= maxDim / height;
+                            height = maxDim;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const base64Avatar = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    currentUser.avatar = base64Avatar;
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                    document.getElementById('profile-img').src = base64Avatar;
+
+                    const safeKey = sanitizeUser(currentUser.username);
+                    if (db) {
+                        db.ref('users/' + safeKey).update({ avatar: base64Avatar });
+                        db.ref('presence/' + safeKey).update({ avatar: base64Avatar });
+                    }
+                    alert("Profile picture successfully updated!");
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function toggleDrawer(show) {
+            document.getElementById('drawer-overlay').style.display = show ? 'block' : 'none';
+            document.getElementById('drawer-sidebar').classList.toggle('open', show);
+        }
+
+        function toggleAuth(showSignup) {
+            document.getElementById('signup-form').style.display = showSignup ? 'block' : 'none';
+            document.getElementById('login-form').style.display = showSignup ? 'none' : 'block';
+            document.getElementById('txt-auth-head').innerText = showSignup ? 'Sign Up' : 'Login';
+        }
+
+        function registerUser() {
+            const rawU = document.getElementById('signup-user').value.trim();
+            const p = document.getElementById('signup-pass').value.trim();
+            const u = sanitizeUser(rawU);
+
+            if(!u || !p) {
+                alert("Please enter a valid username and password.");
+                return;
+            }
+
+            db.ref('users/' + u).once('value', snapshot => {
+                if(!snapshot.exists()) {
+                    const userData = { username: rawU, password: p, chessWins: 0, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u)}` };
+                    db.ref('users/' + u).set(userData);
+                    currentUser = userData;
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                    initApp();
+                } else {
+                    alert('Username already exists!');
+                }
+            });
+        }
+
+        function loginUser() {
+            const rawU = document.getElementById('login-user').value.trim();
+            const p = document.getElementById('login-pass').value.trim();
+            const u = sanitizeUser(rawU);
+
+            if(!u || !p) {
+                alert("Please enter both username and password.");
+                return;
+            }
+
+            db.ref('users/' + u).once('value', snapshot => {
+                if(snapshot.exists() && snapshot.val().password === p) {
+                    currentUser = snapshot.val();
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                    initApp();
+                } else {
+                    alert('Invalid credentials!');
+                }
+            });
+        }
+
+        function logout() {
+            if(currentUser) {
+                const u = sanitizeUser(currentUser.username);
+                db.ref('presence/' + u).remove();
+                db.ref('invites/' + u).off();
+            }
+            localStorage.removeItem('aura_user');
+            location.reload();
+        }
+
+        function listenToPresence() {
+            if(!currentUser || !db) return;
+            const u = sanitizeUser(currentUser.username);
+            const pRef = db.ref('presence/' + u);
+            pRef.set({ username: currentUser.username, avatar: currentUser.avatar, status: 'online', lastSeen: firebase.database.ServerValue.TIMESTAMP });
+            pRef.onDisconnect().remove();
+        }
+
+        function listenToInvitations() {
+            if(!currentUser || !db) return;
+            const u = sanitizeUser(currentUser.username);
+            db.ref('invites/' + u).on('value', snapshot => {
+                const data = snapshot.val();
+                if(data && data.status === 'pending') {
+                    pendingInvite = data;
+                    document.getElementById('txt-invite-desc').innerText = `${escapeHTML(data.from)} challenged you!`;
+                    document.getElementById('invite-modal').style.display = 'flex';
+                } else if(data && data.status === 'accepted') {
+                    db.ref('invites/' + u).remove();
+                    const assignedColor = data.challengerColor || 'w';
+                    startOnlineGame(data.gameId, assignedColor, data.to || data.from);
+                } else if(data && data.status === 'denied') {
+                    db.ref('invites/' + u).remove();
+                    alert("Challenge was declined.");
+                } else {
+                    document.getElementById('invite-modal').style.display = 'none';
+                }
+            });
+        }
+
+        function acceptInvite() {
+            if(!pendingInvite) return;
+            const gameId = pendingInvite.gameId;
+            const acceptorColor = pendingInvite.challengerColor === 'w' ? 'b' : 'w';
+            const fromUserKey = sanitizeUser(pendingInvite.from);
+            const myKey = sanitizeUser(currentUser.username);
+
+            db.ref('invites/' + fromUserKey).set({ status: 'accepted', gameId: gameId, challengerColor: pendingInvite.challengerColor, from: pendingInvite.from, to: currentUser.username });
+            db.ref('invites/' + myKey).remove();
+            document.getElementById('invite-modal').style.display = 'none';
+            
+            startOnlineGame(gameId, acceptorColor, pendingInvite.from);
+        }
+
+        function denyInvite() {
+            if(!pendingInvite) return;
+            const fromUserKey = sanitizeUser(pendingInvite.from);
+            const myKey = sanitizeUser(currentUser.username);
+
+            db.ref('invites/' + fromUserKey).set({ status: 'denied' });
+            db.ref('invites/' + myKey).remove();
+            document.getElementById('invite-modal').style.display = 'none';
+            pendingInvite = null;
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const el = document.getElementById(pageId);
+            if(el) el.classList.add('active');
+
+            if (pageId === 'page-auth') {
+                document.getElementById('header-menu-btn').style.display = 'none';
+                document.getElementById('nav-bar-chess').style.display = 'none';
+            } else {
+                document.getElementById('header-menu-btn').style.display = 'block';
+                document.getElementById('nav-bar-chess').style.display = 'flex';
+            }
+        }
+
+        function switchChessPage(page) {
+            if (document.body.classList.contains('in-game') && page !== 'chess-play') {
+                if(!confirm("Active game will be exited. Are you sure?")) return;
+                exitGameToHome();
+            }
+            showPage('page-' + page);
+            document.querySelectorAll('#nav-bar-chess .nav-item').forEach(b => b.classList.remove('active'));
+            const activeNav = document.getElementById('nav-btn-' + page);
+            if(activeNav) activeNav.classList.add('active');
+
+            if(page === 'chess-play' && document.getElementById('game-arena').style.display === 'block') {
+                exitGameToHome();
+            }
+            if(page === 'chess-leaderboard') loadChessLeaderboard();
+        }
+
+        function openOnlinePlayersSection() {
+            document.getElementById('online-modal-overlay').style.display = 'block';
+            document.getElementById('online-players-card').classList.add('open');
+            loadOnlineFriends();
+        }
+
+        function closeOnlinePlayersSection() {
+            document.getElementById('online-modal-overlay').style.display = 'none';
+            document.getElementById('online-players-card').classList.remove('open');
+        }
+
+        function setupPlayerUI() {
+            const topBar = document.getElementById('player-bar-top');
+            
+            if (isPassAndPlay) {
+                topBar.classList.add('rotate-top-player');
+                document.getElementById('chess-bottom-name').innerText = "Player 1 (White)";
+                document.getElementById('chess-bottom-avatar').src = `https://api.dicebear.com/7.x/avataaars/svg?seed=WhitePlayer`;
+                document.getElementById('chess-top-name').innerText = "Player 2 (Black)";
+                document.getElementById('chess-top-avatar').src = `https://api.dicebear.com/7.x/avataaars/svg?seed=BlackPlayer`;
+                return;
+            }
+
+            topBar.classList.remove('rotate-top-player');
+            document.getElementById('chess-bottom-name').innerText = currentUser.username;
+            document.getElementById('chess-bottom-avatar').src = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(sanitizeUser(currentUser.username))}`;
+
+            document.getElementById('chess-top-name').innerText = opponentName;
+            if (isPlayingBot) {
+                document.getElementById('chess-top-avatar').src = 'https://api.dicebear.com/7.x/bottts/svg?seed=BOT';
+            } else {
+                const opKey = sanitizeUser(opponentName);
+                db.ref('users/' + opKey).once('value', snapshot => {
+                    const opData = snapshot.val();
+                    if(opData && opData.avatar) {
+                        document.getElementById('chess-top-avatar').src = opData.avatar;
+                    } else {
+                        document.getElementById('chess-top-avatar').src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(opKey)}`;
+                    }
+                });
+            }
+        }
+
+        function startBotMatch() {
+            if(activeGameRef) {
+                activeGameRef.off();
+                activeGameRef = null;
+            }
+            isPlayingBot = true;
+            isPassAndPlay = false;
+            playerColor = 'w';
+            opponentName = `BOT (${botDifficulty.toUpperCase()})`;
+            document.body.classList.add('in-game');
+            document.getElementById('play-options-card').style.display = 'none';
+            document.getElementById('btn-open-chat').style.display = 'none';
+            closeOnlinePlayersSection();
+            document.getElementById('game-arena').style.display = 'block';
+
+            chessGame = new Chess();
+            isGameOver = false;
+            selectedSquare = null;
+            legalMoves = [];
+            premove = null;
+            
+            setupPlayerUI();
+            document.getElementById('game-over-modal').style.display = 'none';
+
+            resetChessClocks();
+            renderBoard();
+        }
+
+        function startPassAndPlayMatch() {
+            if(activeGameRef) {
+                activeGameRef.off();
+                activeGameRef = null;
+            }
+            isPlayingBot = false;
+            isPassAndPlay = true;
+            playerColor = 'w';
+            opponentName = "Player 2";
+            document.body.classList.add('in-game');
+            document.getElementById('play-options-card').style.display = 'none';
+            document.getElementById('btn-open-chat').style.display = 'none';
+            closeOnlinePlayersSection();
+            document.getElementById('game-arena').style.display = 'block';
+
+            chessGame = new Chess();
+            isGameOver = false;
+            selectedSquare = null;
+            legalMoves = [];
+            premove = null;
+            
+            setupPlayerUI();
+            document.getElementById('game-over-modal').style.display = 'none';
+
+            resetChessClocks();
+            renderBoard();
+        }
+
+        function exitGameToHome() {
+            if (!isPlayingBot && !isPassAndPlay && activeGameRef && !isGameOver) {
+                isGameOver = true;
+                const winnerColor = playerColor === 'w' ? 'b' : 'w';
+                const winnerName = opponentName;
+                activeGameRef.update({
+                    status: 'abandoned',
+                    abandonedBy: playerColor,
+                    winner: winnerColor,
+                    winnerName: winnerName
+                });
+            }
+            document.body.classList.remove('in-game');
+            document.getElementById('game-arena').style.display = 'none';
+            document.getElementById('play-options-card').style.display = 'block';
+            clearInterval(chessTimerInterval);
+            if(activeGameRef) {
+                activeGameRef.off();
+                activeGameRef = null;
+            }
+            if(chatRef) {
+                chatRef.off();
+                chatRef = null;
+            }
+            toggleChatDrawer(false);
+            document.getElementById('promotion-overlay').style.display = 'none';
+            pendingPromotion = null;
+            premove = null;
+        }
+
+        function setBotDifficulty(diff) {
+            botDifficulty = diff;
+            document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('diff-' + diff).classList.add('active');
+        }
+
+        function resetChessClocks() {
+            clearInterval(chessTimerInterval);
+            whiteTime = 600; blackTime = 600;
+            lastMoveTime = Date.now();
+            updateTimerDisplay();
+
+            chessTimerInterval = setInterval(() => {
+                if(isGameOver) return;
+
+                const now = Date.now();
+                const elapsed = Math.floor((now - (lastMoveTime || now)) / 1000);
+
+                const currentTurn = chessGame ? chessGame.turn() : 'w';
+
+                let currentWhite = whiteTime;
+                let currentBlack = blackTime;
+
+                if (currentTurn === 'w') {
+                    currentWhite = Math.max(0, whiteTime - elapsed);
+                    if (currentWhite <= 0) handleTimeOut('w');
+                } else {
+                    currentBlack = Math.max(0, blackTime - elapsed);
+                    if (currentBlack <= 0) handleTimeOut('b');
+                }
+
+                updateTimerDisplayAccurate(currentWhite, currentBlack);
+            }, 500);
+        }
+
+        function updateTimerDisplayAccurate(wSec, bSec) {
+            const format = (s) => {
+                const val = isNaN(s) ? 600 : Math.max(0, s);
+                const m = Math.floor(val / 60); 
+                const sec = Math.floor(val % 60);
+                return `${m < 10 ? '0' : ''}${m}:${sec < 10 ? '0' : ''}${sec}`;
+            };
+            const tTop = document.getElementById('timer-top');
+            const tBot = document.getElementById('timer-bottom');
+            const pBarTop = document.getElementById('player-bar-top');
+            const pBarBottom = document.getElementById('player-bar-bottom');
+            const currentTurn = chessGame ? chessGame.turn() : 'w';
+
+            if (isPassAndPlay) {
+                tTop.innerText = format(bSec);
+                tBot.innerText = format(wSec);
+                
+                tBot.classList.toggle('timer-active', currentTurn === 'w');
+                pBarBottom.classList.toggle('turn-active', currentTurn === 'w');
+                
+                tTop.classList.toggle('timer-active', currentTurn === 'b');
+                pBarTop.classList.toggle('turn-active', currentTurn === 'b');
+                return;
+            }
+
+            if(playerColor === 'w') {
+                tTop.innerText = format(bSec);
+                tBot.innerText = format(wSec);
+                tBot.classList.toggle('timer-active', currentTurn === 'w');
+                pBarBottom.classList.toggle('turn-active', currentTurn === 'w');
+                tTop.classList.toggle('timer-active', currentTurn === 'b');
+                pBarTop.classList.toggle('turn-active', currentTurn === 'b');
+            } else {
+                tTop.innerText = format(wSec);
+                tBot.innerText = format(bSec);
+                tTop.classList.toggle('timer-active', currentTurn === 'w');
+                pBarTop.classList.toggle('turn-active', currentTurn === 'w');
+                tBot.classList.toggle('timer-active', currentTurn === 'b');
+                pBarBottom.classList.toggle('turn-active', currentTurn === 'b');
+            }
+        }
+
+        function updateTimerDisplay() {
+            updateTimerDisplayAccurate(whiteTime, blackTime);
+        }
+
+        function handleTimeOut(loser) {
+            isGameOver = true;
+            clearInterval(chessTimerInterval);
+            const winner = loser === 'w' ? 'Black Won' : 'White Won';
+            showStatusModal('TIMEOUT', `${winner}!`);
+            if(!isPassAndPlay && ((loser === 'b' && playerColor === 'w') || (loser === 'w' && playerColor === 'b'))) {
+                addWinToCurrentUser();
+            }
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            
+            const isFlipped = (!isPassAndPlay && playerColor === 'b');
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const row = isFlipped ? r : 7 - r;
+                    const col = isFlipped ? 7 - c : c;
+                    const sq = files[col] + (row + 1);
+
+                    const squareDiv = document.createElement('div');
+                    squareDiv.className = `square ${(row + col) % 2 === 0 ? 'dark' : 'light'}`;
+                    squareDiv.dataset.square = sq;
+
+                    if (selectedSquare === sq) squareDiv.classList.add('selected');
+                    if (premove) {
+                        if (premove.from === sq) squareDiv.classList.add('premove-from');
+                        if (premove.to === sq) squareDiv.classList.add('premove-to');
+                    }
+
+                    if (chessGame && chessGame.in_check()) {
+                        const kingSquare = findKingSquare(chessGame.turn());
+                        if (sq === kingSquare) squareDiv.classList.add('check-highlight');
+                    }
+
+                    const piece = chessGame ? chessGame.get(sq) : null;
+                    if (piece) {
+                        const pieceImg = document.createElement('img');
+                        const pieceKey = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
+                        pieceImg.src = PIECES_IMG[pieceKey];
+                        pieceImg.dataset.square = sq;
+                        
+                        if (isPassAndPlay && piece.color === 'b') {
+                            pieceImg.className = 'piece piece-flipped';
+                        } else {
+                            pieceImg.className = 'piece';
+                        }
+                        
+                        pieceImg.onpointerdown = (e) => onPointerDownPiece(e, sq);
+                        squareDiv.appendChild(pieceImg);
+                    }
+
+                    const move = legalMoves.find(m => m.to === sq);
+                    if (move) {
+                        const hint = document.createElement('div');
+                        hint.className = piece ? 'capture-hint' : 'move-hint';
+                        squareDiv.appendChild(hint);
+                    }
+
+                    squareDiv.onclick = () => onSquareClick(sq);
+                    boardEl.appendChild(squareDiv);
+                }
+            }
+        }
+
+        function onPointerDownPiece(e, sq) {
+            if (isGameOver || pendingPromotion) return;
+            
+            const piece = chessGame.get(sq);
+            if (!piece) return;
+
+            // Lift up dragging piece visually
+            draggedPieceEl = e.currentTarget;
+            dragStartSquare = sq;
+
+            draggedPieceEl.classList.add('dragging');
+            moveAt(e.clientX, e.clientY);
+
+            // Execute click handling internally for tile/piece
+            onSquareClick(sq);
+        }
+
+        function moveAt(pageX, pageY) {
+            if (!draggedPieceEl) return;
+            draggedPieceEl.style.position = 'fixed';
+            draggedPieceEl.style.left = pageX - (draggedPieceEl.offsetWidth / 2) + 'px';
+            draggedPieceEl.style.top = pageY - (draggedPieceEl.offsetHeight / 2) + 'px';
+        }
+
+        function onPointerMove(e) {
+            if (draggedPieceEl) {
+                moveAt(e.clientX, e.clientY);
+            }
+        }
+
+        function onPointerUp(e) {
+            if (!draggedPieceEl) return;
+
+            const fromSq = dragStartSquare;
+            draggedPieceEl.classList.remove('dragging');
+            draggedPieceEl.style.position = 'absolute';
+            draggedPieceEl.style.left = '2.5%';
+            draggedPieceEl.style.top = '2.5%';
+
+            const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
+            const targetSquareEl = elemBelow ? elemBelow.closest('.square') : null;
+
+            draggedPieceEl = null;
+            dragStartSquare = null;
+
+            if (targetSquareEl) {
+                const targetSq = targetSquareEl.dataset.square;
+                if (targetSq && targetSq !== fromSq) {
+                    onSquareClick(targetSq);
+                }
+            }
+        }
+
+        function findKingSquare(color) {
+            if(!chessGame) return null;
+            const board = chessGame.board();
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    if (p && p.type === 'k' && p.color === color) {
+                        return files[c] + (8 - r);
+                    }
+                }
+            }
+            return null;
+        }
+
+        function onSquareClick(square) {
+            if (isGameOver || pendingPromotion) return;
+
+            // PREMOVE LOGIC: Handle click when it's not player's turn
+            if (!isPassAndPlay && chessGame.turn() !== playerColor) {
+                // Feature 1: Click to cancel premove and return piece back
+                if (premove) {
+                    premove = null;
+                    selectedSquare = null;
+                    renderBoard();
+                    return;
+                }
+                
+                if (selectedSquare) {
+                    if (selectedSquare === square) {
+                        selectedSquare = null;
+                    } else {
+                        // Set new premove
+                        premove = { from: selectedSquare, to: square };
+                        selectedSquare = null;
+                    }
+                } else {
+                    const piece = chessGame.get(square);
+                    if (piece && piece.color === playerColor) {
+                        selectedSquare = square;
+                    }
+                }
+                renderBoard();
+                return;
+            }
+
+            // Normal Turn Logic
+            if (selectedSquare) {
+                const isLegal = legalMoves.some(m => m.to === square);
+                if (isLegal) {
+                    executeMove(selectedSquare, square);
+                    return;
+                }
+            }
+
+            const piece = chessGame.get(square);
+            if (piece && piece.color === chessGame.turn()) {
+                selectedSquare = square;
+                legalMoves = chessGame.moves({ square: square, verbose: true });
+            } else {
+                selectedSquare = null;
+                legalMoves = [];
+            }
+            renderBoard();
+        }
+
+        function executeMove(from, to, promotionPiece) {
+            const piece = chessGame.get(from);
+            const isPromotion = piece && piece.type === 'p' && ((piece.color === 'w' && to.endsWith('8')) || (piece.color === 'b' && to.endsWith('1')));
+
+            if(isPromotion && !promotionPiece) {
+                showPromotionDialog(from, to, piece.color);
+                return;
+            }
+
+            const moveObj = { from: from, to: to };
+            if(isPromotion || promotionPiece) moveObj.promotion = promotionPiece || 'q';
+
+            const now = Date.now();
+            const elapsed = Math.floor((now - (lastMoveTime || now)) / 1000);
+            if (chessGame.turn() === 'w') {
+                whiteTime = Math.max(0, whiteTime - elapsed);
+            } else {
+                blackTime = Math.max(0, blackTime - elapsed);
+            }
+            lastMoveTime = now;
+
+            const move = chessGame.move(moveObj);
+
+            if (move) {
+                if (move.captured) playSound('capture');
+                else playSound('move');
+
+                selectedSquare = null;
+                legalMoves = [];
+
+                renderBoard();
+                updateTimerDisplay();
+
+                if(!isPlayingBot && !isPassAndPlay && activeGameRef) {
+                    activeGameRef.update({ 
+                        fen: chessGame.fen(), 
+                        lastMove: { from: from, to: to, promotion: moveObj.promotion || null },
+                        turn: chessGame.turn(),
+                        timers: {
+                            whiteTime: whiteTime,
+                            blackTime: blackTime,
+                            lastMoveTimestamp: Date.now()
+                        }
+                    });
+                }
+
+                checkGameStatus();
+
+                if (!isGameOver && isPlayingBot && chessGame.turn() === 'b') {
+                    setTimeout(makeBotMove, 300);
+                } else if (!isGameOver && !isPassAndPlay && chessGame.turn() === playerColor) {
+                    tryExecutePremove();
+                }
+            } else {
+                selectedSquare = null;
+                legalMoves = [];
+                renderBoard();
+            }
+        }
+
+        function tryExecutePremove() {
+            if (!premove) return;
+            const pm = premove;
+            premove = null; // Clear premove before attempting
+
+            // Validate premove legality after opponent move
+            const validMoves = chessGame.moves({ square: pm.from, verbose: true });
+            const isValid = validMoves.some(m => m.to === pm.to);
+
+            if (isValid) {
+                setTimeout(() => {
+                    executeMove(pm.from, pm.to);
+                }, 50);
+            } else {
+                // Feature 2: Opponent's move invalidated the premove -> cancel premove completely
+                renderBoard();
+            }
+        }
+
+        function showPromotionDialog(from, to, color) {
+            pendingPromotion = { from, to };
+            const box = document.getElementById('promotion-box');
+            box.innerHTML = '';
+            ['q', 'r', 'b', 'n'].forEach(p => {
+                const opt = document.createElement('div');
+                opt.className = 'promotion-option';
+                opt.innerHTML = `<img src="${PIECES_IMG[color === 'w' ? p.toUpperCase() : p]}">`;
+                opt.onclick = () => {
+                    document.getElementById('promotion-overlay').style.display = 'none';
+                    const targetPromotion = pendingPromotion;
+                    pendingPromotion = null;
+                    executeMove(targetPromotion.from, targetPromotion.to, p);
+                };
+                box.appendChild(opt);
+            });
+            document.getElementById('promotion-overlay').style.display = 'flex';
+        }
+
+        const pieceValues = { p: 10, n: 30, b: 30, r: 50, q: 90, k: 900 };
+
+        function evaluateBoard(board) {
+            let totalEvaluation = 0;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece) {
+                        const val = pieceValues[piece.type];
+                        totalEvaluation += (piece.color === 'b' ? val : -val);
+                    }
+                }
+            }
+            return totalEvaluation;
+        }
+
+        function minimax(game, depth, alpha, beta, isMaximizing) {
+            if (depth === 0 || game.game_over()) {
+                return evaluateBoard(game.board());
+            }
+
+            const newMoves = game.moves();
+            if (isMaximizing) {
+                let maxEval = -99999;
+                for (let i = 0; i < newMoves.length; i++) {
+                    game.move(newMoves[i]);
+                    let evaluation = minimax(game, depth - 1, alpha, beta, false);
+                    game.undo();
+                    maxEval = Math.max(maxEval, evaluation);
+                    alpha = Math.max(alpha, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = 99999;
+                for (let i = 0; i < newMoves.length; i++) {
+                    game.move(newMoves[i]);
+                    let evaluation = minimax(game, depth - 1, alpha, beta, true);
+                    game.undo();
+                    minEval = Math.min(minEval, evaluation);
+                    beta = Math.min(beta, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function makeBotMove() {
+            if (isGameOver || !chessGame || chessGame.game_over()) return;
+            const moves = chessGame.moves({ verbose: true });
+            if (moves.length === 0) return;
+
+            let bestMove = null;
+
+            if (botDifficulty === 'easy') {
+                bestMove = moves[Math.floor(Math.random() * moves.length)];
+            } else if (botDifficulty === 'normal') {
+                let bestValue = -99999;
+                for (let i = 0; i < moves.length; i++) {
+                    chessGame.move(moves[i]);
+                    let value = minimax(chessGame, 1, -100000, 100000, false);
+                    chessGame.undo();
+                    if (value > bestValue) {
+                        bestValue = value;
+                        bestMove = moves[i];
+                    }
+                }
+                if (!bestMove) bestMove = moves[0];
+            } else {
+                let bestValue = -99999;
+                let searchDepth = 3; 
+                for (let i = 0; i < moves.length; i++) {
+                    chessGame.move(moves[i]);
+                    let value = minimax(chessGame, searchDepth - 1, -100000, 100000, false);
+                    chessGame.undo();
+                    if (value > bestValue) {
+                        bestValue = value;
+                        bestMove = moves[i];
+                    }
+                }
+                if (!bestMove) bestMove = moves[0];
+            }
+
+            if (bestMove.flags.includes('p') || bestMove.promotion) {
+                bestMove.promotion = 'q';
+            }
+
+            const now = Date.now();
+            const elapsed = Math.floor((now - (lastMoveTime || now)) / 1000);
+            blackTime = Math.max(0, blackTime - elapsed);
+            lastMoveTime = now;
+
+            const m = chessGame.move(bestMove);
+            if (m) {
+                if (m.captured) playSound('capture');
+                else playSound('move');
+                renderBoard();
+                checkGameStatus();
+                if (!isGameOver) tryExecutePremove();
+            }
+        }
+
+        function checkGameStatus() {
+            if(!chessGame) return;
+            if (chessGame.in_checkmate()) {
+                isGameOver = true;
+                clearInterval(chessTimerInterval);
+                const winnerColor = chessGame.turn() === 'w' ? 'b' : 'w';
+                const winnerTitle = winnerColor === 'w' ? 'White Won' : 'Black Won';
+                playSound('check');
+                showStatusModal('CHECKMATE', `${winnerTitle}!`);
+                if(!isPassAndPlay && winnerColor === playerColor) addWinToCurrentUser();
+            } else if (
+                chessGame.in_stalemate() || 
+                chessGame.in_threefold_repetition() || 
+                chessGame.insufficient_material() || 
+                chessGame.in_draw()
+            ) {
+                isGameOver = true;
+                clearInterval(chessTimerInterval);
+                let drawReason = 'Stalemate / Repetition';
+                if (chessGame.in_stalemate()) drawReason = 'Stalemate';
+                if (chessGame.insufficient_material()) drawReason = 'Insufficient Material';
+                if (chessGame.in_threefold_repetition()) drawReason = '3-Fold Repetition';
+                showStatusModal('DRAW', `Game Draw (${drawReason})!`);
+            } else if (chessGame.in_check()) {
+                playSound('check');
+            }
+        }
+
+        function addWinToCurrentUser() {
+            if (!currentUser) return;
+            const u = sanitizeUser(currentUser.username);
+            currentUser.chessWins = (currentUser.chessWins || 0) + 1;
+            db.ref('users/' + u).update({ chessWins: currentUser.chessWins });
+            localStorage.setItem('aura_user', JSON.stringify(currentUser));
+        }
+
+        function showStatusModal(title, subtitle) {
+            document.getElementById('game-over-title').innerText = title;
+            document.getElementById('game-over-subtitle').innerText = subtitle;
+            document.getElementById('game-over-modal').style.display = 'flex';
+        }
+
+        function resignGame() {
+            if (isGameOver) return;
+            isGameOver = true;
+            clearInterval(chessTimerInterval);
+            const winnerColor = playerColor === 'w' ? 'b' : 'w';
+            const winnerTitle = winnerColor === 'w' ? 'White Won' : 'Black Won';
+
+            if(!isPlayingBot && !isPassAndPlay && activeGameRef) {
+                activeGameRef.update({
+                    status: 'resigned',
+                    resignedBy: playerColor,
+                    winner: winnerColor,
+                    winnerName: opponentName
+                });
+            }
+            showStatusModal('RESIGNED', `${winnerTitle} (Resignation)!`);
+        }
+
+        function toggleChatDrawer(show) {
+            document.getElementById('chat-overlay').style.display = show ? 'block' : 'none';
+            document.getElementById('chat-drawer').classList.toggle('open', show);
+            if(show) {
+                unreadChatCount = 0;
+                document.getElementById('chat-unread-badge').style.display = 'none';
+                const body = document.getElementById('chat-messages-container');
+                body.scrollTop = body.scrollHeight;
+            }
+        }
+
+        function listenToChat(gameId) {
+            chatRef = db.ref('chats/' + gameId);
+            chatRef.on('child_added', snapshot => {
+                const msg = snapshot.val();
+                if(msg) {
+                    appendChatMessage(msg);
+                    const isOpen = document.getElementById('chat-drawer').classList.contains('open');
+                    if(!isOpen && msg.sender !== currentUser.username) {
+                        unreadChatCount++;
+                        const badge = document.getElementById('chat-unread-badge');
+                        badge.innerText = unreadChatCount;
+                        badge.style.display = 'inline-block';
+                    }
+                }
+            });
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input-text');
+            const text = input.value.trim();
+            if(!text || !chatRef) return;
+
+            chatRef.push({
+                sender: currentUser.username,
+                text: text,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            input.value = '';
+        }
+
+        function appendChatMessage(msg) {
+            const body = document.getElementById('chat-messages-container');
+            const msgDiv = document.createElement('div');
+            const isMine = msg.sender === currentUser.username;
+            msgDiv.className = `chat-msg ${isMine ? 'mine' : 'other'}`;
+            msgDiv.innerHTML = `<strong>${isMine ? 'You' : escapeHTML(msg.sender)}:</strong> ${escapeHTML(msg.text)}`;
+            body.appendChild(msgDiv);
+            body.scrollTop = body.scrollHeight;
+        }
+
+        function loadOnlineFriends() {
+            const list = document.getElementById('online-friends-list');
+            list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-secondary);"><i class="fa-solid fa-spinner fa-spin"></i> Loading players...</div>';
+
+            db.ref('presence').once('value', snapshot => {
+                list.innerHTML = '';
+                const users = snapshot.val();
+                let count = 0;
+
+                if (users) {
+                    Object.keys(users).forEach(key => {
+                        const userObj = users[key];
+                        if (userObj && userObj.username && currentUser && userObj.username.toLowerCase() !== currentUser.username.toLowerCase()) {
+                            count++;
+                            const targetKey = sanitizeUser(userObj.username);
+                            const cooldownLeft = Math.ceil(((inviteCooldowns[targetKey] || 0) - Date.now()) / 1000);
+                            const card = document.createElement('div');
+                            card.className = 'online-user-card';
+                            card.innerHTML = `
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <span class="online-status-dot"></span>
+                                    <img class="user-avatar" src="${userObj.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(targetKey)}`}">
+                                    <span style="font-weight:700;">${escapeHTML(userObj.username)}</span>
+                                </div>
+                                <button class="btn-green" style="width:auto; padding:8px 16px; font-size:12px;" 
+                                    id="btn-invite-${targetKey}" 
+                                    ${cooldownLeft > 0 ? 'disabled style="opacity:0.5"' : ''} 
+                                    onclick="sendChallenge('${escapeHTML(userObj.username)}')">
+                                    ${cooldownLeft > 0 ? `Wait ${cooldownLeft}s` : 'Challenge'}
+                                </button>
+                            `;
+                            list.appendChild(card);
+                        }
+                    });
+                }
+                if (count === 0) list.innerHTML = '<p style="text-align:center; color:var(--text-secondary); margin-top:20px;">No online players found!</p>';
+            });
+        }
+
+        function sendChallenge(targetUser) {
+            const targetKey = sanitizeUser(targetUser);
+            const now = Date.now();
+            if (inviteCooldowns[targetKey] && inviteCooldowns[targetKey] > now) return;
+
+            inviteCooldowns[targetKey] = now + 10000;
+            const gameId = 'game_' + Date.now();
+            const randomColor = Math.random() < 0.5 ? 'w' : 'b';
+
+            db.ref('invites/' + targetKey).set({
+                from: currentUser.username,
+                gameId: gameId,
+                status: 'pending',
+                challengerColor: randomColor
+            });
+
+            const myKey = sanitizeUser(currentUser.username);
+            db.ref('invites/' + myKey).set({
+                status: 'waiting',
+                gameId: gameId,
+                challengerColor: randomColor,
+                to: targetUser
+            });
+
+            loadOnlineFriends();
+        }
+
+        function startOnlineGame(gameId, color, opponent) {
+            isPlayingBot = false;
+            isPassAndPlay = false;
+            playerColor = color; 
+            opponentName = opponent;
+
+            document.body.classList.add('in-game');
+            document.getElementById('play-options-card').style.display = 'none';
+            document.getElementById('btn-open-chat').style.display = 'flex';
+            closeOnlinePlayersSection();
+            document.getElementById('game-arena').style.display = 'block';
+
+            chessGame = new Chess();
+            isGameOver = false;
+            premove = null;
+
+            setupPlayerUI();
+            document.getElementById('game-over-modal').style.display = 'none';
+
+            if (activeGameRef) activeGameRef.off();
+            activeGameRef = db.ref('matches/' + gameId);
+            
+            document.getElementById('chat-messages-container').innerHTML = '';
+            listenToChat(gameId);
+
+            activeGameRef.transaction((currentData) => {
+                if (currentData === null) {
+                    return {
+                        fen: chessGame.fen(),
+                        turn: 'w',
+                        status: 'playing',
+                        timers: {
+                            whiteTime: 600,
+                            blackTime: 600,
+                            lastMoveTimestamp: Date.now()
+                        }
+                    };
+                }
+                return currentData;
+            });
+
+            activeGameRef.onDisconnect().update({
+                status: 'abandoned',
+                abandonedBy: playerColor,
+                winner: playerColor === 'w' ? 'b' : 'w',
+                winnerName: opponent
+            });
+
+            activeGameRef.on('value', snapshot => {
+                const data = snapshot.val();
+                if (data) {
+                    if (data.status === 'resigned') {
+                        if (!isGameOver) {
+                            isGameOver = true;
+                            clearInterval(chessTimerInterval);
+                            const winText = data.winner === 'w' ? 'White Won' : 'Black Won';
+                            showStatusModal('RESIGNED', `${winText} (Resignation)!`);
+                            if (data.winner === playerColor) {
+                                addWinToCurrentUser();
+                            }
+                        }
+                        return;
+                    }
+
+                    if (data.status === 'abandoned') {
+                        if (!isGameOver) {
+                            isGameOver = true;
+                            clearInterval(chessTimerInterval);
+                            const winText = data.winner === 'w' ? 'White Won' : 'Black Won';
+                            showStatusModal('VICTORY', `${winText} (Opponent Left)!`);
+                            if (data.winner === playerColor) {
+                                addWinToCurrentUser();
+                            }
+                        }
+                        return;
+                    }
+
+                    if (data.fen && data.fen !== chessGame.fen()) {
+                        chessGame.load(data.fen);
+                        playSound('move');
+                        selectedSquare = null;
+                        legalMoves = [];
+                        renderBoard();
+                        checkGameStatus();
+                        if (!isGameOver && chessGame.turn() === playerColor) {
+                            tryExecutePremove();
+                        }
+                    }
+
+                    if (data.timers) {
+                        whiteTime = typeof data.timers.whiteTime === 'number' ? data.timers.whiteTime : 600;
+                        blackTime = typeof data.timers.blackTime === 'number' ? data.timers.blackTime : 600;
+                        lastMoveTime = typeof data.timers.lastMoveTimestamp === 'number' ? data.timers.lastMoveTimestamp : Date.now();
+                        updateTimerDisplay();
+                    }
+                }
+            });
+
+            resetChessClocks();
+            renderBoard();
+        }
+
+        function loadChessLeaderboard() {
+            const podium = document.getElementById('chess-lb-podium');
+            const list = document.getElementById('chess-lb-list');
+            podium.innerHTML = ''; list.innerHTML = '';
+
+            db.ref('users').once('value', snapshot => {
+                podium.innerHTML = ''; list.innerHTML = '';
+                const usersMap = snapshot.val();
+                if (!usersMap) {
+                    list.innerHTML = '<p style="text-align:center; color:var(--text-secondary);">No users found!</p>';
+                    return;
+                }
+
+                let users = Object.keys(usersMap).map(uKey => ({
+                    username: usersMap[uKey].username || uKey,
+                    chessWins: usersMap[uKey].chessWins || 0,
+                    avatar: usersMap[uKey].avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(uKey)}`
+                }));
+
+                users.sort((a, b) => b.chessWins - a.chessWins);
+                users = users.slice(0, 10);
+
+                if (users.length > 0) {
+                    const top3 = users.slice(0, 3);
+                    const ranks = ['rank-1', 'rank-2', 'rank-3'];
+                    const crowns = ['fa-crown', 'fa-award', 'fa-medal'];
+                    
+                    top3.forEach((u, idx) => {
+                        const pod = document.createElement('div');
+                        pod.className = `podium-card ${ranks[idx]}`;
+                        pod.innerHTML = `
+                            <i class="fa-solid ${crowns[idx]} crown-icon"></i>
+                            <img class="podium-avatar" src="${u.avatar}">
+                            <span class="podium-name">${escapeHTML(u.username)}</span>
+                            <span class="podium-score">${u.chessWins} Wins</span>
+                        `;
+                        podium.appendChild(pod);
+                    });
+                }
+
+                const remainingUsers = users.slice(3, 10);
+                
+                if (remainingUsers.length === 0 && users.length <= 3) {
+                    list.innerHTML = '<p style="text-align:center; color:var(--text-secondary); margin-top:10px;">No more players in top 10.</p>';
+                } else {
+                    remainingUsers.forEach((u, idx) => {
+                        const card = document.createElement('div');
+                        card.className = 'lb-card';
+                        card.innerHTML = `
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <span class="lb-rank-num">#${idx + 4}</span>
+                                <img class="user-avatar" src="${u.avatar}">
+                                <span style="font-weight:700;">${escapeHTML(u.username)}</span>
+                            </div>
+                            <span style="font-weight:800; color:var(--chess-green);">${u.chessWins} Wins</span>
+                        `;
+                        list.appendChild(card);
+                    });
+                }
+            });
+        }
+    </script>
+</body>
+      </html>

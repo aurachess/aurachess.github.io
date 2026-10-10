@@ -1,0 +1,3346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AuraChess - Premium Chess Experience</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase JS SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #12110e;
+            --card-bg: #1e1d1b;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --chess-green: #81b64c;
+            --chess-green-hover: #a3d168;
+            --chess-dark-square: #739552;
+            --chess-light-square: #ebedd0;
+            --input-bg: #272522;
+            --danger-color: #ef4444;
+            --gold-accent: #f59e0b;
+            --btn-glow: rgba(129, 182, 76, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            width: 100%;
+            height: 50px;
+            padding: 0 16px;
+            background: #191815;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid var(--card-border);
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.5px;
+            cursor: pointer;
+        }
+
+        .logo i { color: var(--chess-green); }
+
+        .header-right-tools {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .coin-pill {
+            background: #22201c;
+            border: 1px solid var(--gold-accent);
+            color: var(--gold-accent);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
+        }
+
+        .lang-pill-btn {
+            background: #22201c;
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .lang-pill-btn:hover {
+            border-color: var(--chess-green);
+            background: #272522;
+        }
+
+        .menu-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .menu-btn:hover { background: rgba(255,255,255,0.05); }
+
+        body.in-game nav { display: none !important; }
+        body.in-game main {
+            padding: 0 !important;
+            max-width: 100% !important;
+            height: calc(100vh - 50px) !important;
+            overflow: hidden !important;
+        }
+
+        .drawer-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            display: none;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease forwards;
+        }
+
+        .drawer-sidebar {
+            position: fixed;
+            top: 0; right: 0;
+            width: 280px; height: 100%;
+            background: #191815;
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 24px 18px;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--card-border);
+            visibility: hidden;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+        }
+
+        .drawer-sidebar.open { 
+            transform: translateX(0); 
+            visibility: visible;
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .drawer-menu-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .drawer-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .drawer-menu-item:hover {
+            background: var(--input-bg);
+            color: var(--chess-green);
+        }
+
+        main {
+            flex: 1;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 12px 12px 75px 12px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page { display: none; width: 100%; height: 100%; }
+        .page.active { display: flex; flex-direction: column; animation: fadeIn 0.25s ease-in-out; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-title {
+            font-size: 22px;
+            font-weight: 800;
+            margin: 12px 0 20px 2px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .auth-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 24px 20px;
+            margin-top: 10px;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
+        .input-group { margin-bottom: 18px; }
+        .input-group label {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: var(--chess-green); }
+
+        .btn-green {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            background: linear-gradient(180deg, #95c85b 0%, var(--chess-green) 100%);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 0 #588232, 0 6px 15px var(--btn-glow);
+            transition: all 0.15s ease;
+        }
+
+        .btn-green:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #588232;
+        }
+
+        .btn-green:hover { background: var(--chess-green-hover); }
+
+        .btn-secondary {
+            background: #272522 !important;
+            color: var(--text-primary) !important;
+            box-shadow: 0 4px 0 #181715 !important;
+            border: 1px solid var(--card-border) !important;
+        }
+
+        /* COOL UPGRADED V-BADGE & RANK STYLES */
+        .avatar-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .v-badge {
+            position: absolute;
+            bottom: -3px;
+            right: -3px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #1a1916;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+            z-index: 10;
+        }
+
+        .v-badge.badge-legend { background: linear-gradient(135deg, #ff007f, #7928ca); box-shadow: 0 0 12px #ff007f; }
+        .v-badge.badge-gm { background: linear-gradient(135deg, #fbbf24, #f59e0b); box-shadow: 0 0 12px #fbbf24; }
+        .v-badge.badge-im { background: linear-gradient(135deg, #c084fc, #9333ea); box-shadow: 0 0 12px #c084fc; }
+        .v-badge.badge-m { background: linear-gradient(135deg, #60a5fa, #2563eb); box-shadow: 0 0 12px #60a5fa; }
+        .v-badge.badge-cm { background: linear-gradient(135deg, #34d399, #059669); box-shadow: 0 0 12px #34d399; }
+        .v-badge.badge-none { background: #4b5563; box-shadow: none; color: #9ca3af; }
+
+        .podium-wrapper {
+            display: flex; justify-content: center; align-items: flex-end;
+            gap: 10px; margin-bottom: 24px; padding-top: 25px; width: 100%;
+        }
+
+        .podium-card {
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            border-radius: 20px; padding: 16px 10px; text-align: center;
+            flex: 1; display: flex; flex-direction: column; align-items: center; position: relative;
+        }
+
+        .podium-card.rank-1 { order: 2; transform: translateY(-10px); border-color: rgba(251, 191, 36, 0.5); }
+        .podium-card.rank-2 { order: 1; border-color: rgba(226, 232, 240, 0.4); }
+        .podium-card.rank-3 { order: 3; border-color: rgba(217, 119, 6, 0.4); }
+
+        .crown-icon { position: absolute; top: -18px; font-size: 22px; }
+        .rank-1 .crown-icon { color: #fbbf24; }
+        .rank-2 .crown-icon { color: #cbd5e1; }
+        .rank-3 .crown-icon { color: #d97706; }
+
+        .podium-avatar {
+            width: 52px; height: 52px; border-radius: 50%;
+            object-fit: cover; border: 2px solid var(--card-border); background: var(--input-bg);
+        }
+        .rank-1 .podium-avatar { border-color: #fbbf24; width: 64px; height: 64px; }
+
+        .podium-name {
+            font-weight: 700; font-size: 13px; color: var(--text-primary);
+            max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 6px;
+        }
+
+        .podium-score { font-size: 12px; font-weight: 800; color: var(--chess-green); margin-top: 2px; }
+
+        .rank-badge {
+            font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px;
+            background: rgba(245, 158, 11, 0.2); color: var(--gold-accent);
+            border: 1px solid var(--gold-accent); margin-top: 4px; text-transform: uppercase;
+        }
+
+        .lb-card {
+            background: var(--card-bg); border-radius: 16px; padding: 14px 18px;
+            margin-bottom: 10px; display: flex; align-items: center;
+            justify-content: space-between; border: 1px solid var(--card-border);
+        }
+
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--input-bg); }
+
+        .lb-rank-num {
+            font-weight: 800; font-size: 14px; width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 8px; background: var(--input-bg); color: var(--text-secondary);
+        }
+
+        .shop-rank-item {
+            background: var(--input-bg); border: 1px solid var(--card-border);
+            border-radius: 14px; padding: 14px 16px; margin-bottom: 12px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        /* TOGGLE SWITCH STYLE */
+        .toggle-switch-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--input-bg);
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            margin-bottom: 18px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #3f3d39;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute; content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--chess-green); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        nav {
+            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: 600px; background: #191815;
+            display: flex; justify-content: space-around; align-items: center; padding: 6px 12px;
+            z-index: 900; border-top: 1px solid var(--card-border); box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+        }
+
+        .nav-item {
+            background: none; border: none; color: var(--text-secondary);
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            font-size: 11px; font-weight: 700; cursor: pointer; padding: 6px 12px;
+            border-radius: 12px; transition: all 0.2s ease;
+        }
+        .nav-item.active { color: #ffffff; background: #272522; }
+        .nav-item.active i { color: var(--chess-green); }
+        .nav-item i { font-size: 18px; }
+
+        .app-container {
+            width: 100%; height: 100%; max-width: 100%; margin: 0 auto;
+            background-color: var(--bg-color); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 8px;
+            position: relative; box-sizing: border-box; gap: 6px;
+        }
+
+        .player-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            height: 48px; padding: 4px 12px; background: #1e1d1b; border-radius: 10px;
+            flex-shrink: 0; width: 100%; max-width: calc(100vh - 220px);
+            border: 1px solid var(--card-border); transition: transform 0.4s ease, background 0.3s ease;
+        }
+
+        .player-bar.turn-active { border-color: var(--chess-green); background: #272b22; }
+        .player-bar.rotate-top-player { transform: rotate(180deg); }
+        .player-info { display: flex; align-items: center; gap: 10px; }
+
+        .avatar-game {
+            width: 36px; height: 36px; border-radius: 8px; object-fit: cover;
+            background: #2a2926; border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .username { color: #ffffff; font-size: 13px; font-weight: 700; }
+
+        .timer {
+            font-size: 13px; font-weight: 800; padding: 4px 8px; border-radius: 8px;
+            font-variant-numeric: tabular-nums; background-color: #12110e; color: #8c8a88;
+            border: 1px solid rgba(255,255,255,0.05); transition: background-color 0.2s, color 0.2s;
+        }
+        .timer-active { background-color: #ffffff !important; color: #111111 !important; box-shadow: 0 0 10px rgba(255,255,255,0.4); }
+
+        .board-wrapper {
+            position: relative; width: 100%;
+            max-width: calc(100vh - 220px); max-height: calc(100vh - 220px);
+            aspect-ratio: 1 / 1; margin: 0 auto; box-shadow: 0 12px 35px rgba(0,0,0,0.8);
+            border-radius: 8px; overflow: hidden; flex-shrink: 1; flex-grow: 0;
+            border: 2px solid #2d2a26;
+        }
+
+        .chessboard {
+            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+            width: 100%; height: 100%; position: relative;
+        }
+
+        .square {
+            position: relative; display: flex; justify-content: center; align-items: center;
+            width: 100%; height: 100%; cursor: pointer; contain: strict;
+        }
+
+        .light { background-color: var(--chess-light-square); color: var(--chess-dark-square); }
+        .dark { background-color: var(--chess-dark-square); color: var(--chess-light-square); }
+
+        /* HIGHLIGHT STYLES */
+        .square.selected {
+            background-color: rgba(255, 255, 51, 0.5) !important;
+        }
+
+        .square.check-highlight {
+            background: radial-gradient(circle, #ef4444 0%, #b91c1c 80%) !important;
+            animation: pulseCheck 1s infinite alternate;
+        }
+
+        @keyframes pulseCheck {
+            from { box-shadow: inset 0 0 10px #ef4444; }
+            to { box-shadow: inset 0 0 25px #7f1d1d; }
+        }
+
+        .move-dot {
+            width: 30%; height: 30%;
+            background-color: rgba(20, 85, 30, 0.4);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 6;
+        }
+
+        .capture-ring {
+            position: absolute;
+            width: 90%; height: 90%;
+            border: 4px solid rgba(239, 68, 68, 0.7);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 6;
+            box-sizing: border-box;
+        }
+
+        .coord-rank, .coord-file {
+            position: absolute; font-size: 11px; font-weight: 800; line-height: 1;
+            pointer-events: none; z-index: 2;
+        }
+        .coord-rank { top: 3px; left: 3px; }
+        .coord-file { bottom: 3px; right: 3px; }
+
+        .piece {
+            width: 90%; height: 90%; object-fit: contain; z-index: 5;
+            position: absolute; pointer-events: none;
+        }
+
+        .piece.piece-flipped { transform: rotate(180deg); }
+
+        .promotion-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); display: none; justify-content: center;
+            align-items: center; z-index: 500; backdrop-filter: blur(4px);
+        }
+
+        .promotion-box {
+            background: #1e1d1b; border: 2px solid var(--card-border);
+            border-radius: 12px; padding: 12px; display: flex; gap: 10px;
+        }
+
+        .promotion-option {
+            width: 50px; height: 50px; background: var(--input-bg);
+            border-radius: 8px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; transition: transform 0.15s;
+        }
+
+        .promotion-option:hover { transform: scale(1.1); }
+        .promotion-option img { width: 85%; height: 85%; object-fit: contain; }
+
+        .game-over-modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
+            display: none; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 1000; padding: 20px; text-align: center;
+        }
+
+        .game-over-card {
+            background: #1e1d1b; border: 2px solid var(--card-border);
+            border-radius: 20px; padding: 24px; width: 90%; max-width: 320px;
+            display: flex; flex-direction: column; align-items: center;
+            animation: scaleUp 0.25s ease forwards;
+        }
+
+        @keyframes scaleUp {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .online-modal-content {
+            position: fixed; bottom: -100%; left: 0; width: 100vw; height: 80vh;
+            background: #191815; border-radius: 24px 24px 0 0; padding: 20px; z-index: 2000;
+            transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column; border-top: 1px solid var(--card-border);
+        }
+
+        .online-modal-content.open { bottom: 0; }
+
+        .online-user-card {
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            border-radius: 14px; padding: 12px 16px; margin-bottom: 10px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .online-status-dot {
+            width: 10px; height: 10px; background: #22c55e; border-radius: 50%;
+            display: inline-block; box-shadow: 0 0 8px #22c55e;
+        }
+
+        .chess-actions-bar { display: flex; gap: 10px; margin-top: 8px; }
+
+        .diff-btn {
+            flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--card-border);
+            background: var(--input-bg); color: var(--text-primary); font-weight: 700;
+            font-size: 12px; cursor: pointer; text-align: center; transition: all 0.2s;
+        }
+
+        .diff-btn.active {
+            background: var(--chess-green); color: #fff; border-color: var(--chess-green);
+            box-shadow: 0 0 10px var(--btn-glow);
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.8); display: flex; justify-content: center;
+            align-items: center; z-index: 2000; padding: 20px; animation: fadeIn 0.2s ease forwards;
+        }
+
+        .modal-box {
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            border-radius: 20px; padding: 24px; width: 100%; max-width: 380px; text-align: center;
+        }
+
+        /* LANGUAGE SELECTION MODAL STYLES */
+        .lang-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+        .lang-option {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .lang-option:hover {
+            border-color: var(--chess-green);
+            background: #2d2b27;
+        }
+        .lang-option.selected-lang {
+            border-color: var(--chess-green);
+            background: rgba(129, 182, 76, 0.15);
+            color: var(--chess-green);
+        }
+        .lang-flag {
+            font-size: 18px;
+        }
+
+        .play-menu-container { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+
+        .control-bar {
+            display: flex; gap: 10px; align-items: center; width: 100%;
+            max-width: calc(100vh - 220px); flex-shrink: 0; height: 40px;
+        }
+
+        .btn-ctrl {
+            flex: 1; height: 100%; padding: 0 12px; border-radius: 10px;
+            font-size: 12px; font-weight: 800; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--card-border);
+            background: #252320; color: var(--text-primary); box-shadow: 0 3px 0 #141311;
+            transition: all 0.15s ease; position: relative;
+        }
+
+        .btn-ctrl:active { transform: translateY(2px); box-shadow: 0 1px 0 #141311; }
+
+        .btn-ctrl-danger { 
+            color: #f87171; border-color: rgba(239, 68, 68, 0.2);
+            background: #2a1b1b; box-shadow: 0 3px 0 #1c1111;
+        }
+
+        .chat-drawer {
+            position: fixed; bottom: -100%; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: 600px; height: 60vh; background: #191815;
+            border-radius: 20px 20px 0 0; border: 1px solid var(--card-border); z-index: 2100;
+            display: flex; flex-direction: column; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+
+        .chat-drawer.open { bottom: 0; }
+
+        .chat-header {
+            padding: 14px 16px; background: #1e1d1b; border-bottom: 1px solid var(--card-border);
+            display: flex; justify-content: space-between; align-items: center; border-radius: 20px 20px 0 0;
+        }
+
+        .chat-body { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+
+        .chat-msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 13px; word-wrap: break-word; }
+        .chat-msg.mine { align-self: flex-end; background: var(--chess-green); color: #fff; border-bottom-right-radius: 2px; }
+        .chat-msg.other { align-self: flex-start; background: var(--input-bg); color: var(--text-primary); border-bottom-left-radius: 2px; border: 1px solid var(--card-border); }
+
+        .chat-input-bar { padding: 10px 12px; background: #1e1d1b; border-top: 1px solid var(--card-border); display: flex; gap: 8px; }
+
+        .chat-badge {
+            position: absolute; top: -5px; right: -5px; background: var(--danger-color);
+            color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 800; display: none;
+        }
+
+        .profile-avatar-container {
+            position: relative; width: 96px; height: 96px; margin: 0 auto 18px auto;
+            cursor: pointer; border-radius: 50%; border: 3px solid var(--chess-green);
+            box-shadow: 0 0 15px rgba(129, 182, 76, 0.4); transition: transform 0.2s, filter 0.2s;
+        }
+
+        .profile-avatar-container:hover { transform: scale(1.03); filter: brightness(1.1); }
+
+        .avatar-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #ffffff; font-size: 11px;
+            font-weight: 700; opacity: 0; border-radius: 50%; transition: opacity 0.2s ease;
+        }
+
+        .profile-avatar-container:hover .avatar-overlay { opacity: 1; }
+        .avatar-overlay i { font-size: 20px; margin-bottom: 4px; }
+
+        /* LEARNING PAGE STYLES */
+        .learn-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .learn-card h3 {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--chess-green);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .learn-card p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        /* LIVE DEMO SIMULATION AREA */
+        .demo-area {
+            background: #181714;
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+        .demo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .demo-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--gold-accent);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .demo-board-wrapper {
+            width: 100%;
+            max-width: 320px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto 12px auto;
+            border: 2px solid #2d2a26;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        .demo-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: 100%;
+            height: 100%;
+        }
+        .demo-controls {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        .demo-btn {
+            background: var(--input-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--card-border);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .demo-btn:hover {
+            background: var(--chess-green);
+            color: #fff;
+        }
+        .demo-status {
+            font-size: 12px;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            font-weight: 600;
+            min-height: 36px;
+        }
+
+        .topic-selector {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .topic-chip {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .topic-chip.active {
+            background: var(--chess-green);
+            color: #ffffff;
+            border-color: var(--chess-green);
+        }
+
+        .tip-box {
+            background: rgba(129, 182, 76, 0.1);
+            border-left: 3px solid var(--chess-green);
+            padding: 10px 12px;
+            border-radius: 0 8px 8px 0;
+            font-size: 12px;
+            color: var(--text-primary);
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header id="main-header">
+        <div class="logo" onclick="switchChessPage('chess-play')">
+            <i class="fa-solid fa-chess-knight"></i>
+            <span>AuraChess</span>
+        </div>
+        <div class="header-right-tools">
+            <div class="coin-pill" id="user-coins-display"><i class="fa-solid fa-coins"></i> <span id="coins-count">0</span></div>
+            <!-- Language Selector Button -->
+            <button class="lang-pill-btn" onclick="openLanguageModal()">
+                <i class="fa-solid fa-globe" style="color:var(--chess-green);"></i> <span id="current-lang-text">EN</span>
+            </button>
+            <button class="menu-btn" id="header-menu-btn" onclick="toggleDrawer(true)" style="display: none;">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- LANGUAGE MODAL INTERFACE -->
+    <div id="language-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="max-width: 340px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="font-size: 18px; font-weight: 800;" data-i18n="select_language">Select Language</h3>
+                <button class="menu-btn" onclick="closeLanguageModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;" data-i18n="lang_subtitle">Choose your preferred language for the website.</p>
+            
+            <div class="lang-grid">
+                <div class="lang-option" onclick="changeLanguage('bn')">
+                    <span class="lang-flag">🇧🇩</span> <span>বাংলা (Bangla)</span>
+                </div>
+                <div class="lang-option" onclick="changeLanguage('en')">
+                    <span class="lang-flag">🇺🇸</span> <span>English</span>
+                </div>
+                <div class="lang-option" onclick="changeLanguage('hi')">
+                    <span class="lang-flag">🇮🇳</span> <span>हिन्दी (Hindi)</span>
+                </div>
+                <div class="lang-option" onclick="changeLanguage('es')">
+                    <span class="lang-flag">🇪🇸</span> <span>Español</span>
+                </div>
+            </div>
+            <button class="btn-green" onclick="closeLanguageModal()" data-i18n="done_btn">Done</button>
+        </div>
+    </div>
+
+    <!-- DRAWER SIDEBAR -->
+    <div class="drawer-overlay" id="drawer-overlay" onclick="toggleDrawer(false)"></div>
+    <div class="drawer-sidebar" id="drawer-sidebar">
+        <div class="drawer-header">
+            <span style="font-weight: 800; font-size: 18px;" data-i18n="menu_title">Menu</span>
+            <button class="menu-btn" onclick="toggleDrawer(false)"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="drawer-menu-list">
+            <div class="drawer-menu-item" onclick="switchChessPage('chess-play'); toggleDrawer(false);">
+                <i class="fa-solid fa-gamepad"></i> <span data-i18n="play_area">Play Area</span>
+            </div>
+            <div class="drawer-menu-item" onclick="switchChessPage('chess-learn'); toggleDrawer(false);">
+                <i class="fa-solid fa-graduation-cap"></i> <span data-i18n="learning">Learning</span>
+            </div>
+            <div class="drawer-menu-item" onclick="switchChessPage('chess-shop'); toggleDrawer(false);">
+                <i class="fa-solid fa-store"></i> <span data-i18n="rank_store">Rank Store</span>
+            </div>
+            <div class="drawer-menu-item" onclick="switchChessPage('chess-leaderboard'); toggleDrawer(false);">
+                <i class="fa-solid fa-trophy"></i> <span data-i18n="leaderboard">Leaderboard</span>
+            </div>
+            <div class="drawer-menu-item" onclick="switchChessPage('profile'); toggleDrawer(false);">
+                <i class="fa-solid fa-user-gear"></i> <span data-i18n="profile_settings">Profile Settings</span>
+            </div>
+        </div>
+        <div style="margin-top: auto;">
+            <button class="btn-green btn-secondary" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> <span data-i18n="logout">Logout</span></button>
+        </div>
+    </div>
+
+    <main>
+        <!-- AUTH PAGE -->
+        <div id="page-auth" class="page active">
+            <div class="auth-card">
+                <h2 class="auth-title" id="txt-auth-head" style="text-align: center; margin-bottom: 20px;" data-i18n="auth_title">Sign Up / Login</h2>
+                
+                <div id="signup-form">
+                    <div class="input-group">
+                        <label data-i18n="username">Username</label>
+                        <input type="text" id="signup-user" class="form-input" placeholder="e.g. ratul">
+                    </div>
+                    <div class="input-group">
+                        <label data-i18n="password">Password</label>
+                        <input type="password" id="signup-pass" class="form-input" placeholder="••••••••">
+                    </div>
+                    <button class="btn-green" type="button" onclick="registerUser()" data-i18n="signup_btn">Sign Up</button>
+                    <p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary);">
+                        <span data-i18n="have_account">Already have an account?</span> <a href="javascript:void(0)" onclick="toggleAuth(false)" style="color: var(--chess-green); font-weight:700; text-decoration:none;" data-i18n="login_link">Login</a>
+                    </p>
+                </div>
+
+                <div id="login-form" style="display: none;">
+                    <div class="input-group">
+                        <label data-i18n="username">Username</label>
+                        <input type="text" id="login-user" class="form-input" placeholder="Username">
+                    </div>
+                    <div class="input-group">
+                        <label data-i18n="password">Password</label>
+                        <input type="password" id="login-pass" class="form-input" placeholder="••••••••">
+                    </div>
+                    <button class="btn-green" type="button" onclick="loginUser()" data-i18n="login_btn">Login</button>
+                    <p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary);">
+                        <span data-i18n="no_account">Don't have an account?</span> <a href="javascript:void(0)" onclick="toggleAuth(true)" style="color: var(--chess-green); font-weight:700; text-decoration:none;" data-i18n="signup_link">Sign Up</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHESS PLAY PAGE -->
+        <div id="page-chess-play" class="page">
+            <div id="play-options-card" class="auth-card" style="margin-bottom: 20px;">
+                <h3 style="margin-bottom: 16px; font-weight: 800; text-align: center;" data-i18n="select_game_mode">Select Game Mode</h3>
+                
+                <div class="play-menu-container">
+                    <button class="btn-green" onclick="startBotMatch()"><i class="fa-solid fa-robot"></i> <span data-i18n="play_bot">Play vs Computer</span></button>
+                    <button class="btn-green btn-secondary" style="border-color: var(--chess-green) !important; color: var(--chess-green) !important;" onclick="startPassAndPlayMatch()"><i class="fa-solid fa-users"></i> <span data-i18n="play_offline">Play offline</span></button>
+                    <button class="btn-green btn-secondary" onclick="openOnlinePlayersSection()"><i class="fa-solid fa-user-group"></i> <span data-i18n="play_friends">Play with Friends</span></button>
+                </div>
+
+                <div id="bot-diff-container">
+                    <label style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);" data-i18n="bot_difficulty">Bot Difficulty:</label>
+                    <div class="chess-actions-bar">
+                        <button class="diff-btn active" id="diff-easy" onclick="setBotDifficulty('easy')" data-i18n="diff_easy">EASY</button>
+                        <button class="diff-btn" id="diff-normal" onclick="setBotDifficulty('normal')" data-i18n="diff_normal">NORMAL</button>
+                        <button class="diff-btn" id="diff-hard" onclick="setBotDifficulty('hard')" data-i18n="diff_hard">HARD</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHESS BOARD ARENA -->
+            <div id="game-arena" style="display: none; width: 100%; height: 100%;">
+                <div class="app-container">
+                    <!-- TOP PLAYER BAR -->
+                    <div class="player-bar" id="player-bar-top">
+                        <div class="player-info">
+                            <div class="avatar-container" id="top-avatar-container">
+                                <img id="chess-top-avatar" class="avatar-game" src="https://api.dicebear.com/7.x/bottts/svg?seed=BOT" alt="Opponent">
+                            </div>
+                            <div class="username-container">
+                                <span class="username" id="chess-top-name">BOT</span>
+                            </div>
+                        </div>
+                        <div id="timer-top" class="timer">10:00</div>
+                    </div>
+
+                    <!-- CHESS BOARD CONTAINER -->
+                    <div class="board-wrapper">
+                        <div class="chessboard" id="board"></div>
+
+                        <!-- PAWN PROMOTION OVERLAY -->
+                        <div class="promotion-overlay" id="promotion-overlay">
+                            <div class="promotion-box" id="promotion-box"></div>
+                        </div>
+
+                        <!-- GAME OVER OVERLAY -->
+                        <div class="game-over-modal" id="game-over-modal">
+                            <div class="game-over-card">
+                                <i class="fa-solid fa-trophy" style="font-size: 48px; color: var(--gold-accent); margin-bottom: 12px;"></i>
+                                <div id="game-over-title" style="font-size: 24px; font-weight: 800; color: #fff;">CHECKMATE</div>
+                                <div id="game-over-subtitle" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">White Wins</div>
+                                <button class="btn-green" style="width:100%;" onclick="exitGameToHome()"><i class="fa-solid fa-house"></i> <span data-i18n="main_menu">Main Menu</span></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM PLAYER BAR -->
+                    <div class="player-bar" id="player-bar-bottom">
+                        <div class="player-info">
+                            <div class="avatar-container" id="bottom-avatar-container">
+                                <img id="chess-bottom-avatar" class="avatar-game" src="" alt="Player">
+                            </div>
+                            <div class="username-container">
+                                <span class="username" id="chess-bottom-name">Player</span>
+                            </div>
+                        </div>
+                        <div id="timer-bottom" class="timer timer-active">10:00</div>
+                    </div>
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="control-bar">
+                        <button class="btn-ctrl btn-ctrl-danger" onclick="requestResign()">
+                            <i class="fa-solid fa-flag"></i> <span data-i18n="resign">Resign</span>
+                        </button>
+                        <button class="btn-ctrl" id="btn-open-chat" style="display:none;" onclick="toggleChatDrawer(true)">
+                            <i class="fa-solid fa-comments"></i> <span data-i18n="chat">Chat</span>
+                            <span class="chat-badge" id="chat-unread-badge">0</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LEARNING PAGE WITH LIVE ANIMATED DEMO -->
+        <div id="page-chess-learn" class="page">
+            <h2 class="page-title">
+                <span data-i18n="learning_title">Live Interactive Guide</span>
+                <i class="fa-solid fa-graduation-cap" style="color: var(--chess-green);"></i>
+            </h2>
+
+            <!-- TOPIC CHIPS -->
+            <div class="topic-selector">
+                <div class="topic-chip active" onclick="selectDemoTopic('pawn')" data-i18n="topic_pawn">Pawn Move</div>
+                <div class="topic-chip" onclick="selectDemoTopic('knight')" data-i18n="topic_knight">Knight Jump</div>
+                <div class="topic-chip" onclick="selectDemoTopic('bishop')" data-i18n="topic_bishop">Bishop Diagonal</div>
+                <div class="topic-chip" onclick="selectDemoTopic('rook')" data-i18n="topic_rook">Rook Straight</div>
+                <div class="topic-chip" onclick="selectDemoTopic('queen')" data-i18n="topic_queen">Queen Power</div>
+                <div class="topic-chip" onclick="selectDemoTopic('castling')" data-i18n="topic_castling">Castling</div>
+                <div class="topic-chip" onclick="selectDemoTopic('scholar')" data-i18n="topic_scholar">Scholar's Mate</div>
+            </div>
+
+            <!-- LIVE ANIMATED VIDEO SIMULATION BOARD -->
+            <div class="demo-area">
+                <div class="demo-header">
+                    <div class="demo-title" id="demo-title-text"><i class="fa-solid fa-circle-play"></i> <span data-i18n="demo_pawn_head">Live Demo: Pawn Move</span></div>
+                    <span style="font-size:11px; color:var(--text-secondary);" id="demo-step-counter">Step 0/0</span>
+                </div>
+                
+                <div class="demo-board-wrapper">
+                    <div class="demo-board" id="demo-board"></div>
+                </div>
+
+                <div class="demo-controls">
+                    <button class="demo-btn" onclick="playPauseDemo()"><i class="fa-solid fa-play" id="demo-play-icon"></i> <span id="demo-play-text" data-i18n="play_demo">Play Demo</span></button>
+                    <button class="demo-btn" onclick="resetDemo()"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="reset">Reset</span></button>
+                </div>
+
+                <div class="demo-status" id="demo-status-text" data-i18n="demo_start_prompt">Click Play to start the animated live video guide!</div>
+            </div>
+
+            <!-- EXPLANATION CARD -->
+            <div class="learn-card">
+                <h3 id="learn-topic-head"><i class="fa-solid fa-chess-pawn"></i> <span data-i18n="learn_pawn_h3">Pawn Movement</span></h3>
+                <p id="learn-topic-desc" data-i18n="learn_pawn_desc">Pawns move forward one square at a time, but on their first move, they can advance two squares. They capture enemy pieces diagonally one square forward.</p>
+                <div class="tip-box" id="learn-topic-tip">
+                    <strong data-i18n="pro_tip">Pro Tip:</strong> <span data-i18n="learn_pawn_tip">Control the middle squares early with your pawns to gain space!</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RANK SHOP PAGE -->
+        <div id="page-chess-shop" class="page">
+            <h2 class="page-title">
+                <span data-i18n="shop_title">VIP Rank Store</span>
+                <i class="fa-solid fa-store" style="color: var(--gold-accent);"></i>
+            </h2>
+            <div style="background: var(--card-bg); padding: 14px; border-radius: 14px; border: 1px solid var(--card-border); margin-bottom: 16px;">
+                <p style="font-size: 12px; color: var(--text-secondary);" data-i18n="shop_desc">Earn 10 coins for every victory! Purchase prestigious VIP Ranks to display next to your profile.</p>
+            </div>
+            <div id="rank-shop-list">
+                <div class="shop-rank-item">
+                    <div>
+                        <div style="font-weight: 800; color: #ff007f; font-size: 14px;">👑 Chess Legend</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">5,000 Coins</div>
+                    </div>
+                    <button class="btn-green" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="buyRank('Chess Legend', 5000)" data-i18n="buy_rank">Buy Rank</button>
+                </div>
+                <div class="shop-rank-item">
+                    <div>
+                        <div style="font-weight: 800; color: #f59e0b; font-size: 14px;">⚡ Grandmaster (GM)</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">2,500 Coins</div>
+                    </div>
+                    <button class="btn-green" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="buyRank('Grandmaster', 2500)" data-i18n="buy_rank">Buy Rank</button>
+                </div>
+                <div class="shop-rank-item">
+                    <div>
+                        <div style="font-weight: 800; color: #a855f7; font-size: 14px;">🔥 International Master (IM)</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">1,000 Coins</div>
+                    </div>
+                    <button class="btn-green" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="buyRank('International Master', 1000)" data-i18n="buy_rank">Buy Rank</button>
+                </div>
+                <div class="shop-rank-item">
+                    <div>
+                        <div style="font-weight: 800; color: #3b82f6; font-size: 14px;">💎 Master (M)</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">500 Coins</div>
+                    </div>
+                    <button class="btn-green" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="buyRank('Master', 500)" data-i18n="buy_rank">Buy Rank</button>
+                </div>
+                <div class="shop-rank-item">
+                    <div>
+                        <div style="font-weight: 800; color: #10b981; font-size: 14px;">⭐ Candidate Master (CM)</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">250 Coins</div>
+                    </div>
+                    <button class="btn-green" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="buyRank('Candidate Master', 250)" data-i18n="buy_rank">Buy Rank</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- LEADERBOARD PAGE -->
+        <div id="page-chess-leaderboard" class="page">
+            <h2 class="page-title">
+                <span data-i18n="lb_title">Top 10 Leaders</span>
+                <i class="fa-solid fa-chess-king" style="color: var(--gold-accent);"></i>
+            </h2>
+            <div id="chess-lb-podium" class="podium-wrapper"></div>
+            <div id="chess-lb-list"></div>
+        </div>
+
+        <!-- PROFILE PAGE -->
+        <div id="page-profile" class="page">
+            <div class="auth-card" style="text-align: center;">
+                <h2 style="margin-bottom: 20px;" data-i18n="profile_settings">Profile Settings</h2>
+
+                <!-- PROFILE AVATAR WRAPPER -->
+                <div class="profile-avatar-container avatar-container" id="profile-avatar-wrapper" onclick="document.getElementById('profile-file-input').click()">
+                    <img id="profile-img" src="" style="width:100%; height:100%; object-fit: cover; border-radius: 50%;">
+                    <div class="avatar-overlay">
+                        <i class="fa-solid fa-camera"></i>
+                        <span data-i18n="change">Change</span>
+                    </div>
+                </div>
+
+                <input type="file" id="profile-file-input" accept="image/*" style="display:none;" onchange="uploadProfilePicture(event)">
+
+                <div class="input-group" style="text-align: left;">
+                    <label data-i18n="username">Username</label>
+                    <input type="text" id="edit-user" class="form-input" readonly>
+                </div>
+
+                <div class="input-group" style="text-align: left;">
+                    <label data-i18n="current_vip_rank">Current VIP Rank</label>
+                    <input type="text" id="edit-rank" class="form-input" readonly value="None">
+                </div>
+
+                <!-- MOVE HINTS TOGGLE SWITCH OPTION -->
+                <div class="toggle-switch-container">
+                    <span style="font-weight: 700; font-size: 13px;" data-i18n="move_hints_label">Show Move Hints (Valid Squares)</span>
+                    <label class="switch">
+                        <input type="checkbox" id="move-hints-toggle" onchange="toggleMoveHintsSetting(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <button class="btn-green btn-secondary" style="margin-top: 10px;" onclick="logout()" data-i18n="logout">Logout</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- CHAT DRAWER -->
+    <div class="drawer-overlay" id="chat-overlay" onclick="toggleChatDrawer(false)"></div>
+    <div class="chat-drawer" id="chat-drawer">
+        <div class="chat-header">
+            <span style="font-weight: 800;"><i class="fa-solid fa-comments" style="color:var(--chess-green);"></i> <span data-i18n="match_chat">Match Chat</span></span>
+            <button class="menu-btn" onclick="toggleChatDrawer(false)"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="chat-body" id="chat-messages-container"></div>
+        <div class="chat-input-bar">
+            <input type="text" id="chat-input-text" class="form-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendChatMessage()" data-i18n-placeholder="chat_placeholder">
+            <button class="btn-green" style="width: auto; padding: 10px 18px; margin-top: 0;" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <!-- ONLINE FRIENDS MODAL -->
+    <div class="drawer-overlay" id="online-modal-overlay" onclick="closeOnlinePlayersSection()"></div>
+    <div class="online-modal-content" id="online-players-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-weight: 800; font-size: 18px;"><i class="fa-solid fa-user-group" style="color:var(--chess-green);"></i> <span data-i18n="online_friends">Online Friends</span></h3>
+            <button class="btn-ctrl" style="width:auto; padding:6px 14px;" onclick="closeOnlinePlayersSection()"><i class="fa-solid fa-xmark"></i> <span data-i18n="close">Close</span></button>
+        </div>
+        <div id="online-friends-list" style="overflow-y: auto; flex: 1;"></div>
+    </div>
+
+    <!-- NAVIGATION BAR -->
+    <nav id="nav-bar-chess" style="display: none;">
+        <button class="nav-item active" id="nav-btn-chess-play" onclick="switchChessPage('chess-play')">
+            <i class="fa-solid fa-gamepad"></i> <span data-i18n="nav_play">Play</span>
+        </button>
+        <button class="nav-item" id="nav-btn-chess-learn" onclick="switchChessPage('chess-learn')">
+            <i class="fa-solid fa-graduation-cap"></i> <span data-i18n="nav_learn">Learn</span>
+        </button>
+        <button class="nav-item" id="nav-btn-chess-shop" onclick="switchChessPage('chess-shop')">
+            <i class="fa-solid fa-store"></i> <span data-i18n="nav_store">Store</span>
+        </button>
+        <button class="nav-item" id="nav-btn-chess-leaderboard" onclick="switchChessPage('chess-leaderboard')">
+            <i class="fa-solid fa-ranking-star"></i> <span data-i18n="nav_leaderboard">Leaderboard</span>
+        </button>
+    </nav>
+
+    <!-- INVITATION MODAL -->
+    <div id="invite-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <i class="fa-solid fa-chess-knight" style="font-size: 40px; color: var(--chess-green); margin-bottom: 12px;"></i>
+            <h3 style="font-size: 18px; margin-bottom: 8px;" data-i18n="challenge_title">Chess Challenge!</h3>
+            <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;" id="txt-invite-desc">A player challenges you to a game.</p>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-green" style="flex:1;" onclick="acceptInvite()"><i class="fa-solid fa-check"></i> <span data-i18n="accept">Accept</span></button>
+                <button class="btn-green btn-secondary" style="flex:1;" onclick="denyInvite()"><i class="fa-solid fa-xmark"></i> <span data-i18n="deny">Deny</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESIGN REQUEST / CONFIRMATION MODAL -->
+    <div id="resign-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <i class="fa-solid fa-flag" style="font-size: 40px; color: var(--danger-color); margin-bottom: 12px;"></i>
+            <h3 style="font-size: 18px; margin-bottom: 8px;" data-i18n="resign_title">Resign Match</h3>
+            <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;" id="txt-resign-desc">Do you want to resign this match?</p>
+            <div style="display: flex; gap: 10px;" id="resign-modal-buttons">
+                <button class="btn-green" style="flex:1; background: var(--danger-color); box-shadow: 0 4px 0 #991b1b;" onclick="confirmResign()"><i class="fa-solid fa-check"></i> <span data-i18n="yes">Yes</span></button>
+                <button class="btn-green btn-secondary" style="flex:1;" onclick="closeResignModal()"><i class="fa-solid fa-xmark"></i> <span data-i18n="no">No</span></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+
+        function sanitizeUser(u) {
+            return u ? String(u).toLowerCase().trim().replace(/[\.\#\$\[\]\/]/g, "_") : "";
+        }
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAQhlRh5xHTe2BkjF-_hZ3QaAadiL26KLo",
+            authDomain: "auraquiz-c036e.firebaseapp.com",
+            databaseURL: "https://auraquiz-c036e-default-rtdb.firebaseio.com",
+            projectId: "auraquiz-c036e",
+            storageBucket: "auraquiz-c036e.firebasestorage.app",
+            messagingSenderId: "961673369155",
+            appId: "1:961673369155:web:336404ae1f34eab0a066f6",
+            measurementId: "G-R7MFH8GTGT"
+        };
+        
+        let db = null;
+        try {
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+        } catch(e) { console.error("Firebase init failed:", e); }
+
+        let currentUser = null;
+        let chessGame = null;
+        let selectedSquare = null;
+        let whiteTime = 600;
+        let blackTime = 600;
+        let lastMoveTime = null;
+        let chessTimerInterval = null;
+        let botDifficulty = 'easy';
+        let isPlayingBot = true;
+        let isPassAndPlay = false;
+        let playerColor = 'w';
+        let opponentName = 'Opponent';
+        let pendingInvite = null;
+        let activeGameRef = null;
+        let chatRef = null;
+        let unreadChatCount = 0;
+        let isGameOver = false;
+        let pendingPromotion = null;
+        let inviteCooldowns = {};
+        let showMoveHints = localStorage.getItem('aura_move_hints') !== 'false';
+
+        let squareElementsMap = {};
+
+        // --- MULTI-LANGUAGE DICTIONARY ---
+        let currentLanguage = localStorage.getItem('aura_lang') || 'en';
+        
+        const translations = {
+            'en': {
+                select_language: "Select Language",
+                lang_subtitle: "Choose your preferred language for the website.",
+                done_btn: "Done",
+                menu_title: "Menu",
+                play_area: "Play Area",
+                learning: "Learning",
+                rank_store: "Rank Store",
+                leaderboard: "Leaderboard",
+                profile_settings: "Profile Settings",
+                logout: "Logout",
+                auth_title: "Sign Up / Login",
+                username: "Username",
+                password: "Password",
+                signup_btn: "Sign Up",
+                have_account: "Already have an account?",
+                login_link: "Login",
+                login_btn: "Login",
+                no_account: "Don't have an account?",
+                signup_link: "Sign Up",
+                select_game_mode: "Select Game Mode",
+                play_bot: "Play vs Computer",
+                play_offline: "Play offline",
+                play_friends: "Play with Friends",
+                bot_difficulty: "Bot Difficulty:",
+                diff_easy: "EASY",
+                diff_normal: "NORMAL",
+                diff_hard: "HARD",
+                main_menu: "Main Menu",
+                resign: "Resign",
+                chat: "Chat",
+                move_hints_label: "Show Move Hints (Valid Squares)",
+                resign_title: "Resign Match",
+                yes: "Yes",
+                no: "No",
+                resign_request_sent: "Resign request sent to opponent. Waiting for confirmation...",
+                resign_declined: "Opponent declined your resignation request!",
+                learning_title: "Live Interactive Guide",
+                topic_pawn: "Pawn Move",
+                topic_knight: "Knight Jump",
+                topic_bishop: "Bishop Diagonal",
+                topic_rook: "Rook Straight",
+                topic_queen: "Queen Power",
+                topic_castling: "Castling",
+                topic_scholar: "Scholar's Mate",
+                play_demo: "Play Demo",
+                reset: "Reset",
+                shop_title: "VIP Rank Store",
+                shop_desc: "Earn 10 coins for every victory! Purchase prestigious VIP Ranks to display next to your profile.",
+                buy_rank: "Buy Rank",
+                lb_title: "Top 10 Leaders",
+                change: "Change",
+                current_vip_rank: "Current VIP Rank",
+                match_chat: "Match Chat",
+                chat_placeholder: "Type a message...",
+                online_friends: "Online Friends",
+                close: "Close",
+                nav_play: "Play",
+                nav_learn: "Learn",
+                nav_store: "Store",
+                nav_leaderboard: "Leaderboard",
+                challenge_title: "Chess Challenge!",
+                accept: "Accept",
+                deny: "Deny",
+                demo_pawn_head: "Live Demo: Pawn Move",
+                demo_knight_head: "Live Demo: Knight Jump",
+                demo_bishop_head: "Live Demo: Bishop Diagonal",
+                demo_rook_head: "Live Demo: Rook Straight",
+                demo_queen_head: "Live Demo: Queen Power",
+                demo_castling_head: "Live Demo: Castling Rule",
+                demo_scholar_head: "Live Demo: Scholar's Mate",
+                demo_start_prompt: "Click Play to start the animated live video guide!",
+                demo_completed: "Demo complete! Click Reset to watch again.",
+                pro_tip: "Pro Tip:",
+                learn_pawn_h3: "Pawn Movement",
+                learn_pawn_desc: "Pawns move forward one square at a time, but on their first move, they can advance two squares. They capture enemy pieces diagonally one square forward.",
+                learn_pawn_tip: "Control the middle squares early with your pawns to gain space!",
+                learn_knight_h3: "Knight Movement",
+                learn_knight_desc: "Knights move in an 'L' shape (2 squares straight, 1 square side). It is the only piece that can jump over other pieces!",
+                learn_knight_tip: "'Knights on the rim are dim' — Keep Knights near the center for maximum board coverage!",
+                learn_bishop_h3: "Bishop Movement",
+                learn_bishop_desc: "Bishops move diagonally as far as they want. Each player gets one light-squared and one dark-squared Bishop.",
+                learn_bishop_tip: "Keep your diagonals open so your Bishops can attack from distance!",
+                learn_rook_h3: "Rook Movement",
+                learn_rook_desc: "Rooks move horizontally or vertically any number of squares. They are heavy pieces, powerful on open files.",
+                learn_rook_tip: "Place Rooks on open columns (files without pawns) to dominate the game!",
+                learn_queen_h3: "Queen Movement",
+                learn_queen_desc: "The Queen is the most powerful piece! She can move straight or diagonally in any direction as far as she wants.",
+                learn_queen_tip: "Don't bring the Queen out too early, or enemy pieces will harass her!",
+                learn_castling_h3: "Special Move: Castling",
+                learn_castling_desc: "Castling protects your King and activates your Rook in one single turn! The King moves 2 squares towards the Rook.",
+                learn_castling_tip: "You cannot castle if your King has moved or if the squares between them are attacked!",
+                learn_scholar_h3: "Scholar's Mate Checkmate",
+                learn_scholar_desc: "A famous 4-move checkmate targeting the weak f7 square right next to the Black King!",
+                learn_scholar_tip: "Defend your f7/f2 square early by developing Knights or Pawns properly!"
+            },
+            'bn': {
+                select_language: "ভাষা নির্বাচন করুন",
+                lang_subtitle: "ওয়েবসাইটের জন্য আপনার পছন্দসই ভাষা বেছে নিন।",
+                done_btn: "সম্পন্ন",
+                menu_title: "মেনু",
+                play_area: "খেলার ক্ষেত্র",
+                learning: "শিখুন",
+                rank_store: "র‍্যাংক স্টোর",
+                leaderboard: "সেরা খেলোয়াড়",
+                profile_settings: "প্রোফাইল সেটিংস",
+                logout: "লগআউট",
+                auth_title: "সাইন আপ / লগইন",
+                username: "ইউজারনেম",
+                password: "পাসওয়ার্ড",
+                signup_btn: "সাইন আপ",
+                have_account: "ইতিমধ্যে অ্যাকাউন্ট আছে?",
+                login_link: "লগইন",
+                login_btn: "লগইন",
+                no_account: "অ্যাকাউন্ট নেই?",
+                signup_link: "সাইন আপ",
+                select_game_mode: "গেম মোড সিলেক্ট করুন",
+                play_bot: "কম্পিউটারের সাথে খেলুন",
+                play_offline: "অফলাইন খেলুন",
+                play_friends: "বন্ধুদের সাথে খেলুন",
+                bot_difficulty: "বটের কঠিনতা:",
+                diff_easy: "সহজ",
+                diff_normal: "সাধারণ",
+                diff_hard: "কঠিন",
+                main_menu: "মেইন মেনু",
+                resign: "আত্মসমর্পণ",
+                chat: "চ্যাট",
+                move_hints_label: "গূতি টিপলে কোন ঘর দেখাবে (Move Hints)",
+                resign_title: "ম্যাচ রিসাইন করুন",
+                yes: "হ্যাঁ",
+                no: "না",
+                resign_request_sent: "প্রতিপক্ষের কাছে রিসাইন রিকোয়েস্ট পাঠানো হয়েছে। অনুমোদনের জন্য অপেক্ষা করা হচ্ছে...",
+                resign_declined: "প্রতিপক্ষ আপনার রিসাইন রিকোয়েস্ট প্রত্যাখ্যান করেছে!",
+                learning_title: "লাইভ ইন্টারঅ্যাক্টিভ গাইড",
+                topic_pawn: "পন মুভ",
+                topic_knight: "নাইট জাম্প",
+                topic_bishop: "বিশপ ডায়াগোনাল",
+                topic_rook: "রুক স্ট্রেইট",
+                topic_queen: "রানী পাওয়ার",
+                topic_castling: "ক্যাসলিং",
+                topic_scholar: "স্কলার্স মেট",
+                play_demo: "ডেমো চালান",
+                reset: "রিসেট",
+                shop_title: "ভিআইপি র‍্যাংক স্টোর",
+                shop_desc: "প্রতিটি জয়ে ১০ কয়েন অর্জন করুন! আপনার প্রোফাইলের পাশে প্রদর্শনের জন্য ভিআইপি র‍্যাংক কিনুন।",
+                buy_rank: "র‍্যাংক কিনুন",
+                lb_title: "সেরা ১০ লিডার",
+                change: "পরিবর্তন",
+                current_vip_rank: "বর্তমান ভিআইপি র‍্যাংক",
+                match_chat: "ম্যাচ চ্যাট",
+                chat_placeholder: "একটি বার্তা লিখুন...",
+                online_friends: "অনলাইন বন্ধুরা",
+                close: "বন্ধ করুন",
+                nav_play: "খেলুন",
+                nav_learn: "শিখুন",
+                nav_store: "স্টোর",
+                nav_leaderboard: "লিডারবোর্ড",
+                challenge_title: "চেস চ্যালেঞ্জ!",
+                accept: "গ্রহণ করুন",
+                deny: "প্রত্যাখ্যান",
+                demo_pawn_head: "লাইভ ডেমো: পন মুভ",
+                demo_knight_head: "লাইভ ডেমো: নাইট জাম্প",
+                demo_bishop_head: "লাইভ ডেমো: বিশপ ডায়াগোনাল",
+                demo_rook_head: "লাইভ ডেমো: রুক স্ট্রেইট",
+                demo_queen_head: "লাইভ ডেমো: রানী পাওয়ার",
+                demo_castling_head: "লাইভ ডেমো: ক্যাসলিং নিয়ম",
+                demo_scholar_head: "লাইভ ডেমো: স্কলার্স মেট",
+                demo_start_prompt: "অ্যানিমেটেড লাইভ গাইড শুরু করতে প্লে-তে ক্লিক করুন!",
+                demo_completed: "ডেমো সম্পন্ন! পুনরায় দেখতে রিসেট করুন।",
+                pro_tip: "প্রো টিপস:",
+                learn_pawn_h3: "পন মুভমেন্ট (সৈনিকের চলন)",
+                learn_pawn_desc: "পন বা সৈনিকেরা সামনে এক ঘর করে চলে, তবে প্রথম চালে তারা দুই ঘর সামনে এগোতে পারে। তারা শত্রু গুটি কোনাকুনিভাবে ধরে।",
+                learn_pawn_tip: "বোর্ডের কেন্দ্র দখল করতে শুরুতেই পন দিয়ে মাঝের ঘরগুলো কন্ট্রোল করুন!",
+                learn_knight_h3: "নাইট মুভমেন্ট (ঘোড়ার চলন)",
+                learn_knight_desc: "'এল' (L) আকৃতিতে চলে নাইট (২ ঘর সোজা, ১ ঘর পাশে)। এটি একমাত্র গুটি যা অন্য গুটির উপর দিয়ে লাফিয়ে যেতে পারে!",
+                learn_knight_tip: "বোর্ডের কোণায় নাইট দুর্বল থাকে, তাই সর্বোচ্চ কভারেজের জন্য নাইটকে কেন্দ্রের কাছাকাছি রাখুন!",
+                learn_bishop_h3: "বিশপ মুভমেন্ট (হাতির চলন)",
+                learn_bishop_desc: "বিশপ কোনাকুনি যতদূর খুশি যেতে পারে। প্রতিটি খেলোয়াড়ের একটি সাদা ও একটি কালো ঘরের বিশপ থাকে।",
+                learn_bishop_tip: "বিশপ যেন দূর থেকে আক্রমণ করতে পারে সেজন্য ডায়াগোনাল বা কোনাকুনি পথ খোলা রাখুন!",
+                learn_rook_h3: "রুক মুভমেন্ট (নৌকার চলন)",
+                learn_rook_desc: "রুক সোজা লম্বালম্বি বা পাশাপাশি যেকোনো ঘর সংখ্যায় যেতে পারে। এটি অত্যন্ত শক্তিশালী ভারী গুটি।",
+                learn_rook_tip: "খেলার নিয়ন্ত্রণ নিতে রুক বা নৌকাগুলোকে ফাঁকা কলামে স্থাপন করুন!",
+                learn_queen_h3: "রানী মুভমেন্ট (রানীর ক্ষমতা)",
+                learn_queen_desc: "রানী হলো সবচেয়ে শক্তিশালী গুটি! সে সোজা বা কোনাকুনি যেকোনো দিকে যতদূর ইচ্ছে যেতে পারে।",
+                learn_queen_tip: "রানীকে খুব দ্রুত শুরুতে বের করবেন না, অন্যথায় শত্রুর গুটি তাকে আক্রমণ করে ফেলবে!",
+                learn_castling_h3: "বিশেষ চাল: ক্যাসলিং",
+                learn_castling_desc: "ক্যাসলিং রাজার সুরক্ষা নিশ্চিত করে এবং একই চালে রুক বা নৌকাকে খেলায় সক্রিয় করে! রাজা রুকের দিকে দুই ঘর এগিয়ে যায়।",
+                learn_castling_tip: "রাজা ইতিমধ্যে নড়ে গিয়ে থাকলে কিংবা মাঝের ঘরগুলোতে আক্রমণ থাকলে ক্যাসলিং করা যাবে না!",
+                learn_scholar_h3: "স্কলার্স মেট (৪ চালে চেকমেট)",
+                learn_scholar_desc: "কালো রাজার পাশের দুর্বল f7 ঘরকে লক্ষ্য করে মাত্র ৪ চালে চেকমেটের বিখ্যাত একটি কৌশল!",
+                learn_scholar_tip: "সঠিকভাবে নাইট বা পন ডেভেলপ করে শুরুতেই আপনার f7/f2 ঘর সুরক্ষিত রাখুন!"
+            },
+            'hi': {
+                select_language: "भाषा चुनें",
+                lang_subtitle: "वेबसाइट के लिए अपनी पसंदीदा भाषा चुनें।",
+                done_btn: "हो गया",
+                menu_title: "मेन्यू",
+                play_area: "खेल क्षेत्र",
+                learning: "सीखें",
+                rank_store: "रैंक स्टोर",
+                leaderboard: "लीडरबोर्ड",
+                profile_settings: "प्रोफ़ाइल सेटिंग",
+                logout: "लॉगआउट",
+                auth_title: "साइन अप / लॉगिन",
+                username: "यूज़रनेम",
+                password: "पासवर्ड",
+                signup_btn: "साइन अप",
+                have_account: "पहिले से खाता है?",
+                login_link: "लॉगिन",
+                login_btn: "लॉगिन",
+                no_account: "खाता नहीं है?",
+                signup_link: "साइन अप",
+                select_game_mode: "गेम मोड चुनें",
+                play_bot: "कंप्यूटर के खिलाफ खेलें",
+                play_offline: "ऑफ़लाइन खेलें",
+                play_friends: "दोस्तों के साथ खेलें",
+                bot_difficulty: "बॉट कठिनाई:",
+                diff_easy: "आसान",
+                diff_normal: "सामान्य",
+                diff_hard: "कठिन",
+                main_menu: "मुख्य मेनू",
+                resign: "समर्पण",
+                chat: "चैट",
+                move_hints_label: "चलने के संकेत दिखाएं (Move Hints)",
+                resign_title: "मैच सरेंडर करें",
+                yes: "हाँ",
+                no: "नहीं",
+                resign_request_sent: "विरोधी को समर्पण अनुरोध भेजा गया।...",
+                resign_declined: "विरोधी ने आपका समर्पण अनुरोध अस्वीकार कर दिया!",
+                learning_title: "लाइव इंटरैक्टिव गाइड",
+                topic_pawn: "प्यार चाल",
+                topic_knight: "घोड़ा कूद",
+                topic_bishop: "ऊंट चाल",
+                topic_rook: "हाथी चाल",
+                topic_queen: "रानी शक्ति",
+                topic_castling: "कैसलिंग",
+                topic_scholar: "स्कॉलर मेट",
+                play_demo: "डेमो चलाएं",
+                reset: "रीसेट",
+                shop_title: "वीआईपी रैंक स्टोर",
+                shop_desc: "हर जीत पर 10 सिक्के कमाएं! अपनी प्रोफ़ाइल पर दिखाने के लिए वीआईपी रैंक खरीदें।",
+                buy_rank: "रैंक खरीदें",
+                lb_title: "शीर्ष 10 नेता",
+                change: "बदलें",
+                current_vip_rank: "वर्तमान वीआईपी रैंक",
+                match_chat: "मैच चैट",
+                chat_placeholder: "संदेश लिखें...",
+                online_friends: "ऑनलाइन मित्र",
+                close: "बंद करें",
+                nav_play: "खेलें",
+                nav_learn: "सीखें",
+                nav_store: "स्टोर",
+                nav_leaderboard: "लीडरबोर्ड",
+                challenge_title: "शतरंज चुनौती!",
+                accept: "स्वीकार करें",
+                deny: "अस्वीकार",
+                demo_pawn_head: "लाइव डेमो: प्यादा चाल",
+                demo_knight_head: "लाइव डेमो: घोड़ा कूद",
+                demo_bishop_head: "लाइव डेमो: ऊंट चाल",
+                demo_rook_head: "लाइव डेमो: हाथी चाल",
+                demo_queen_head: "लाइव डेमो: रानी शक्ति",
+                demo_castling_head: "लाइव डेमो: कैसलिंग नियम",
+                demo_scholar_head: "लाइव डेमो: स्कॉलर मेट",
+                demo_start_prompt: "एनिमेटेड लाइव गाइड शुरू करने के लिए प्ले पर क्लिक करें!",
+                demo_completed: "डेमो पूर्ण! दोबारा देखने के लिए रीसेट करें।",
+                pro_tip: "प्रो टिप:",
+                learn_pawn_h3: "प्यादा चाल (पॉन मूवमेंट)",
+                learn_pawn_desc: "प्यादे सीधे एक घर चलते हैं, लेकिन पहली चाल में दो घर आगे बढ़ सकते हैं। वे दुश्मन मोहरों को तिरछे काटते हैं।",
+                learn_pawn_tip: "स्पेस पाने के लिए शुरुआती दौर में अपने प्यादों से बीच के घरों पर नियंत्रण रखें!",
+                learn_knight_h3: "घोड़ा चाल (नाइट मूवमेंट)",
+                learn_knight_desc: "घोड़ा 'L' आकार में चलता है (2 घर सीधे, 1 घर बगल में)। यह एकमात्र मोहरा है जो अन्य मोहरों के ऊपर कूद सकता है!",
+                learn_knight_tip: "किनारे पर घोड़ा कमजोर होता है, इसलिए केंद्र के पास रखें!",
+                learn_bishop_h3: "ऊंट चाल (बिषप मूवमेंट)",
+                learn_bishop_desc: "बिषप तिरछे जितना चाहें चल सकता है। प्रत्येक खिलाड़ी के पास एक सफेद और एक काले घर का बिषप होता है।",
+                learn_bishop_tip: "अपने बिषप से दूर से हमला करने के लिए विकर्ण रास्ते खुले रखें!",
+                learn_rook_h3: "हाथी चाल (रूक मूवमेंट)",
+                learn_rook_desc: "रूक क्षैतिज या लंबवत किसी भी संख्या में घर चल सकता है। यह एक शक्तिशाली भारी मोहरा है।",
+                learn_rook_tip: "गेम पर हावी होने के लिए रूक को खुली कतारों पर रखें!",
+                learn_queen_h3: "रानी चाल (क्वीन पावर)",
+                learn_queen_desc: "रानी सबसे शक्तिशाली मोहरा है! यह सीधे या तिरछे किसी भी दिशा में दूर तक जा सकती है।",
+                learn_queen_tip: "रानी को बहुत जल्दी बाहर न लाएं, अन्यथा दुश्मन उसे घेर लेंगे!",
+                learn_castling_h3: "विशेष चाल: कैसलिंग",
+                learn_castling_desc: "कैसलिंग राजा की रक्षा करती है और रूक को सक्रिय करती है! राजा रूक की ओर दो घर चलता है।",
+                learn_castling_tip: "यदि राजा पहले ही चल चुका है तो कैसलिंग नहीं की जा सकती!",
+                learn_scholar_h3: "स्कॉलर मेट (चेकमेट)",
+                learn_scholar_desc: "काले राजा के पास कमजोर f7 घर को निशाना बनाते हुए 4 चालों में चेकमेट करने की प्रसिद्ध चाल।",
+                learn_scholar_tip: "ठीक से नाइट और पॉन विकसित करके अपने f7/f2 घर की रक्षा करें!"
+            },
+            'es': {
+                select_language: "Seleccionar Idioma",
+                lang_subtitle: "Elige tu idioma preferido para el sitio web.",
+                done_btn: "Hecho",
+                menu_title: "Menú",
+                play_area: "Área de Juego",
+                learning: "Aprender",
+                rank_store: "Tienda de Rangos",
+                leaderboard: "Clasificación",
+                profile_settings: "Configuración",
+                logout: "Cerrar Sesión",
+                auth_title: "Registrarse / Iniciar Sesión",
+                username: "Usuario",
+                password: "Contraseña",
+                signup_btn: "Registrarse",
+                have_account: "¿Ya tienes cuenta?",
+                login_link: "Iniciar Sesión",
+                login_btn: "Iniciar Sesión",
+                no_account: "¿No tienes cuenta?",
+                signup_link: "Registrarse",
+                select_game_mode: "Seleccionar Modo de Juego",
+                play_bot: "Jugar vs Computadora",
+                play_offline: "Jugar sin conexión",
+                play_friends: "Jugar con Amigos",
+                bot_difficulty: "Dificultad del Bot:",
+                diff_easy: "FÁCIL",
+                diff_normal: "NORMAL",
+                diff_hard: "DIFÍCIL",
+                main_menu: "Menú Principal",
+                resign: "Rendirse",
+                chat: "Chat",
+                move_hints_label: "Mostrar pistas de movimiento",
+                resign_title: "Rendirse",
+                yes: "Sí",
+                no: "No",
+                resign_request_sent: "Solicitud de rendición enviada...",
+                resign_declined: "¡El oponente rechazó tu rendición!",
+                learning_title: "Guía Interactiva",
+                topic_pawn: "Movimiento de Peón",
+                topic_knight: "Salto de Caballo",
+                topic_bishop: "Diagonal de Alfil",
+                topic_rook: "Torre Recta",
+                topic_queen: "Poder de Reina",
+                topic_castling: "Enroque",
+                topic_scholar: "Mate de Pastor",
+                play_demo: "Reproducir Demo",
+                reset: "Reiniciar",
+                shop_title: "Tienda de Rangos VIP",
+                shop_desc: "¡Gana 10 monedas por cada victoria! Compra rangos VIP prestigiosos.",
+                buy_rank: "Comprar Rango",
+                lb_title: "Top 10 Líderes",
+                change: "Cambiar",
+                current_vip_rank: "Rango VIP Actual",
+                match_chat: "Chat de Partida",
+                chat_placeholder: "Escribe un mensaje...",
+                online_friends: "Amigos en Línea",
+                close: "Cerrar",
+                nav_play: "Jugar",
+                nav_learn: "Aprender",
+                nav_store: "Tienda",
+                nav_leaderboard: "Clasificación",
+                challenge_title: "¡Desafío de Ajedrez!",
+                accept: "Aceptar",
+                deny: "Rechazar",
+                demo_pawn_head: "Demo en Vivo: Movimiento de Peón",
+                demo_knight_head: "Demo en Vivo: Salto de Caballo",
+                demo_bishop_head: "Demo en Vivo: Diagonal de Alfil",
+                demo_rook_head: "Demo en Vivo: Torre Recta",
+                demo_queen_head: "Demo en Vivo: Poder de Reina",
+                demo_castling_head: "Demo en Vivo: Enroque",
+                demo_scholar_head: "Demo en Vivo: Mate de Pastor",
+                demo_start_prompt: "¡Haz clic en Reproducir para iniciar la guía!",
+                demo_completed: "¡Demo completa! Haz clic en Reiniciar.",
+                pro_tip: "Consejo Pro:",
+                learn_pawn_h3: "Movimiento de Peón",
+                learn_pawn_desc: "Los peones avanzan una casilla, pero en su primer movimiento pueden avanzar dos. Capturan en diagonal.",
+                learn_pawn_tip: "¡Controla las casillas centrales temprano con tus peones!",
+                learn_knight_h3: "Movimiento de Caballo",
+                learn_knight_desc: "El caballo se mueve en forma de 'L'. ¡Es la única pieza que puede saltar sobre otras!",
+                learn_knight_tip: "¡Mantén los caballos cerca del centro para mayor cobertura!",
+                learn_bishop_h3: "Movimiento de Alfil",
+                learn_bishop_desc: "Los alfiles se mueven en diagonal tanto como quieran.",
+                learn_bishop_tip: "¡Mantén tus diagonales abiertas para atacar a distancia!",
+                learn_rook_h3: "Movimiento de Torre",
+                learn_rook_desc: "Las torres se mueven horizontal o verticalmente.",
+                learn_rook_tip: "¡Coloca las torres en columnas abiertas para dominar el juego!",
+                learn_queen_h3: "Movimiento de Reina",
+                learn_queen_desc: "¡La reina es la pieza más poderosa! Se mueve en cualquier dirección.",
+                learn_queen_tip: "¡No saques la reina demasiado pronto!",
+                learn_castling_h3: "Movimiento Especial: Enroque",
+                learn_castling_desc: "¡El enroque protege a tu rey y activa tu torre en un solo turno!",
+                learn_castling_tip: "¡No puedes enrocar si tu rey ya se ha movido!",
+                learn_scholar_h3: "Mate de Pastor",
+                learn_scholar_desc: "¡Un famoso jaque mate de 4 movimientos dirigido al punto débil f7!",
+                learn_scholar_tip: "¡Defiende tu casilla f7/f2 temprano!"
+            }
+        };
+
+        function openLanguageModal() {
+            document.getElementById('language-modal').style.display = 'flex';
+        }
+
+        function closeLanguageModal() {
+            document.getElementById('language-modal').style.display = 'none';
+        }
+
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            localStorage.setItem('aura_lang', lang);
+            document.getElementById('current-lang-text').innerText = lang.toUpperCase();
+            applyTranslations();
+            closeLanguageModal();
+        }
+
+        function applyTranslations() {
+            const dict = translations[currentLanguage] || translations['en'];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) {
+                    el.innerText = dict[key];
+                }
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (dict[key]) {
+                    el.setAttribute('placeholder', dict[key]);
+                }
+            });
+            
+            if (typeof currentTopic !== 'undefined' && DEMO_TOPICS[currentTopic]) {
+                updateTopicContent(currentTopic);
+            }
+        }
+
+        let audioCtx = null;
+        function initAudio() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch(e) {}
+        }
+
+        function playSound(type) {
+            try {
+                initAudio();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain); 
+                gain.connect(audioCtx.destination);
+                
+                if (type === 'move') {
+                    osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+                } else if (type === 'capture') {
+                    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.12);
+                } else if (type === 'check') {
+                    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+                }
+            } catch(e) {}
+        }
+
+        const PIECES_IMG = {
+            'r': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/br.png',
+            'n': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bn.png',
+            'b': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bb.png',
+            'q': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bq.png',
+            'k': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bk.png',
+            'p': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bp.png',
+            'R': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wr.png',
+            'N': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wn.png',
+            'B': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wb.png',
+            'Q': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wq.png',
+            'K': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wk.png',
+            'P': 'https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wp.png'
+        };
+
+        const imageCache = {};
+        function preloadPieceImages() {
+            Object.keys(PIECES_IMG).forEach(key => {
+                const img = new Image();
+                img.src = PIECES_IMG[key];
+                imageCache[key] = img;
+            });
+        }
+        preloadPieceImages();
+
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+        function getVBadgeHTML(rankTitle) {
+            let badgeClass = 'badge-none';
+            let symbol = 'P';
+
+            if (rankTitle === 'Chess Legend') { badgeClass = 'badge-legend'; symbol = '👑'; }
+            else if (rankTitle === 'Grandmaster') { badgeClass = 'badge-gm'; symbol = '⚡'; }
+            else if (rankTitle === 'International Master') { badgeClass = 'badge-im'; symbol = '🔥'; }
+            else if (rankTitle === 'Master') { badgeClass = 'badge-m'; symbol = '💎'; }
+            else if (rankTitle === 'Candidate Master') { badgeClass = 'badge-cm'; symbol = '⭐'; }
+            else if (rankTitle === 'BOT') { badgeClass = 'badge-gm'; symbol = 'B'; }
+
+            return `<div class="v-badge ${badgeClass}" title="${escapeHTML(rankTitle || 'Player')}">${symbol}</div>`;
+        }
+
+        window.onload = function() {
+            document.getElementById('current-lang-text').innerText = currentLanguage.toUpperCase();
+            applyTranslations();
+
+            const savedUser = localStorage.getItem('aura_user');
+            if(savedUser) {
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    if(!currentUser || !currentUser.username) throw new Error("Invalid User Object");
+                    initApp();
+                } catch(e) {
+                    localStorage.removeItem('aura_user');
+                    showPage('page-auth');
+                }
+            } else {
+                showPage('page-auth');
+            }
+
+            document.body.addEventListener('click', () => initAudio(), { once: true });
+            document.body.addEventListener('touchstart', () => initAudio(), { once: true });
+        };
+
+        function initApp() {
+            if (!currentUser) return;
+            const safeName = sanitizeUser(currentUser.username);
+            document.getElementById('edit-user').value = currentUser.username;
+            document.getElementById('profile-img').src = currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(safeName)}`;
+            
+            const toggleElem = document.getElementById('move-hints-toggle');
+            if(toggleElem) toggleElem.checked = showMoveHints;
+
+            document.getElementById('header-menu-btn').style.display = 'block';
+            document.getElementById('nav-bar-chess').style.display = 'flex';
+
+            updateCoinsUI();
+            listenToPresence();
+            listenToInvitations();
+            switchChessPage('chess-play');
+        }
+
+        function toggleMoveHintsSetting(checkbox) {
+            showMoveHints = checkbox.checked;
+            localStorage.setItem('aura_move_hints', showMoveHints);
+            renderBoard();
+        }
+
+        function updateCoinsUI() {
+            if(!currentUser) return;
+            document.getElementById('coins-count').innerText = currentUser.coins || 0;
+            const rankElem = document.getElementById('edit-rank');
+            if(rankElem) rankElem.value = currentUser.rankTitle || 'None';
+
+            const profContainer = document.getElementById('profile-avatar-wrapper');
+            if (profContainer) {
+                const oldBadge = profContainer.querySelector('.v-badge');
+                if (oldBadge) oldBadge.remove();
+                profContainer.insertAdjacentHTML('beforeend', getVBadgeHTML(currentUser.rankTitle));
+            }
+        }
+
+        function buyRank(rankTitle, cost) {
+            if(!currentUser) return;
+            const currentCoins = currentUser.coins || 0;
+            if(currentCoins < cost) {
+                alert(`Insufficient Coins! You need ${cost} coins for ${rankTitle}.`);
+                return;
+            }
+            currentUser.coins = currentCoins - cost;
+            currentUser.rankTitle = rankTitle;
+            
+            const u = sanitizeUser(currentUser.username);
+            if(db) db.ref('users/' + u).update({ coins: currentUser.coins, rankTitle: rankTitle });
+            localStorage.setItem('aura_user', JSON.stringify(currentUser));
+            updateCoinsUI();
+            alert(`Congratulations! You unlocked VIP Rank: ${rankTitle}`);
+        }
+
+        function uploadProfilePicture(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    const maxDim = 200;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxDim) { height *= maxDim / width; width = maxDim; }
+                    } else {
+                        if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const base64Avatar = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    currentUser.avatar = base64Avatar;
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                    document.getElementById('profile-img').src = base64Avatar;
+
+                    const safeKey = sanitizeUser(currentUser.username);
+                    if (db) {
+                        db.ref('users/' + safeKey).update({ avatar: base64Avatar });
+                        db.ref('presence/' + safeKey).update({ avatar: safeKey });
+                    }
+                    alert("Profile picture successfully updated!");
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function toggleDrawer(show) {
+            document.getElementById('drawer-overlay').style.display = show ? 'block' : 'none';
+            document.getElementById('drawer-sidebar').classList.toggle('open', show);
+        }
+
+        function toggleAuth(showSignup) {
+            document.getElementById('signup-form').style.display = showSignup ? 'block' : 'none';
+            document.getElementById('login-form').style.display = showSignup ? 'none' : 'block';
+            document.getElementById('txt-auth-head').innerText = showSignup ? 'Sign Up' : 'Login';
+        }
+
+        function registerUser() {
+            const rawU = document.getElementById('signup-user').value.trim();
+            const p = document.getElementById('signup-pass').value.trim();
+            const u = sanitizeUser(rawU);
+
+            if(!u || !p) {
+                alert("Please enter a valid username and password.");
+                return;
+            }
+
+            db.ref('users/' + u).once('value', snapshot => {
+                if(!snapshot.exists()) {
+                    const userData = { username: rawU, password: p, chessWins: 0, coins: 50, rankTitle: 'Beginner', avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u)}` };
+                    db.ref('users/' + u).set(userData);
+                    currentUser = userData;
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                    initApp();
+                } else {
+                    alert('Username already exists!');
+                }
+            });
+        }
+
+        function loginUser() {
+            const rawU = document.getElementById('login-user').value.trim();
+            const p = document.getElementById('login-pass').value.trim();
+            const u = sanitizeUser(rawU);
+
+            if(!u || !p) {
+                alert("Please enter both username and password.");
+                return;
+            }
+
+            db.ref('users/' + u).once('value', snapshot => {
+                if(snapshot.exists() && snapshot.val().password === p) {
+                    currentUser = snapshot.val();
+                    localStorage.setItem('aura_user', JSON.stringify(currentUser));
+                    initApp();
+                } else {
+                    alert('Invalid credentials!');
+                }
+            });
+        }
+
+        function logout() {
+            if(currentUser) {
+                const u = sanitizeUser(currentUser.username);
+                db.ref('presence/' + u).remove();
+                db.ref('invites/' + u).off();
+            }
+            localStorage.removeItem('aura_user');
+            location.reload();
+        }
+
+        function listenToPresence() {
+            if(!currentUser || !db) return;
+            const u = sanitizeUser(currentUser.username);
+            const pRef = db.ref('presence/' + u);
+            pRef.set({ username: currentUser.username, avatar: currentUser.avatar, status: 'online', rankTitle: currentUser.rankTitle || 'Beginner', lastSeen: firebase.database.ServerValue.TIMESTAMP });
+            pRef.onDisconnect().remove();
+        }
+
+        function listenToInvitations() {
+            if(!currentUser || !db) return;
+            const u = sanitizeUser(currentUser.username);
+            db.ref('invites/' + u).on('value', snapshot => {
+                const data = snapshot.val();
+                if(data && data.status === 'pending') {
+                    pendingInvite = data;
+                    document.getElementById('txt-invite-desc').innerText = `${escapeHTML(data.from)} challenged you!`;
+                    document.getElementById('invite-modal').style.display = 'flex';
+                } else if(data && data.status === 'accepted') {
+                    db.ref('invites/' + u).remove();
+                    const assignedColor = data.challengerColor || 'w';
+                    startOnlineGame(data.gameId, assignedColor, data.to || data.from);
+                } else if(data && data.status === 'denied') {
+                    db.ref('invites/' + u).remove();
+                    alert("Challenge was declined.");
+                } else {
+                    document.getElementById('invite-modal').style.display = 'none';
+                }
+            });
+        }
+
+        function acceptInvite() {
+            if(!pendingInvite) return;
+            const gameId = pendingInvite.gameId;
+            const acceptorColor = pendingInvite.challengerColor === 'w' ? 'b' : 'w';
+            const fromUserKey = sanitizeUser(pendingInvite.from);
+            const myKey = sanitizeUser(currentUser.username);
+
+            db.ref('invites/' + fromUserKey).set({ status: 'accepted', gameId: gameId, challengerColor: pendingInvite.challengerColor, from: pendingInvite.from, to: currentUser.username });
+            db.ref('invites/' + myKey).remove();
+            document.getElementById('invite-modal').style.display = 'none';
+            
+            startOnlineGame(gameId, acceptorColor, pendingInvite.from);
+        }
+
+        function denyInvite() {
+            if(!pendingInvite) return;
+            const fromUserKey = sanitizeUser(pendingInvite.from);
+            const myKey = sanitizeUser(currentUser.username);
+
+            db.ref('invites/' + fromUserKey).set({ status: 'denied' });
+            db.ref('invites/' + myKey).remove();
+            document.getElementById('invite-modal').style.display = 'none';
+            pendingInvite = null;
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const el = document.getElementById(pageId);
+            if(el) el.classList.add('active');
+
+            if (pageId === 'page-auth') {
+                document.getElementById('header-menu-btn').style.display = 'none';
+                document.getElementById('nav-bar-chess').style.display = 'none';
+            } else {
+                document.getElementById('header-menu-btn').style.display = 'block';
+                document.getElementById('nav-bar-chess').style.display = 'flex';
+            }
+        }
+
+        function switchChessPage(page) {
+            if (document.body.classList.contains('in-game') && page !== 'chess-play') {
+                if(!confirm("Active game will be exited. Are you sure?")) return;
+                exitGameToHome();
+            }
+            showPage('page-' + page);
+            document.querySelectorAll('#nav-bar-chess .nav-item').forEach(b => b.classList.remove('active'));
+            const activeNav = document.getElementById('nav-btn-' + page);
+            if(activeNav) activeNav.classList.add('active');
+
+            if(page === 'chess-play' && document.getElementById('game-arena').style.display === 'block') {
+                exitGameToHome();
+            }
+            if(page === 'chess-leaderboard') loadChessLeaderboard();
+            if(page === 'chess-learn') initDemoBoard();
+        }
+
+        function openOnlinePlayersSection() {
+            document.getElementById('online-modal-overlay').style.display = 'block';
+            document.getElementById('online-players-card').classList.add('open');
+            loadOnlineFriends();
+        }
+
+        function closeOnlinePlayersSection() {
+            document.getElementById('online-modal-overlay').style.display = 'none';
+            document.getElementById('online-players-card').classList.remove('open');
+        }
+
+        function updateAvatarWithBadge(containerId, avatarImgId, avatarSrc, rankTitle) {
+            const container = document.getElementById(containerId);
+            const img = document.getElementById(avatarImgId);
+            if (!container || !img) return;
+
+            img.src = avatarSrc;
+            const oldBadge = container.querySelector('.v-badge');
+            if (oldBadge) oldBadge.remove();
+
+            container.insertAdjacentHTML('beforeend', getVBadgeHTML(rankTitle));
+        }
+
+        function setupPlayerUI() {
+            const topBar = document.getElementById('player-bar-top');
+            
+            if (isPassAndPlay) {
+                topBar.classList.add('rotate-top-player');
+                document.getElementById('chess-bottom-name').innerText = "Player 1 (White)";
+                updateAvatarWithBadge('bottom-avatar-container', 'chess-bottom-avatar', `https://api.dicebear.com/7.x/avataaars/svg?seed=WhitePlayer`, 'Player');
+                
+                document.getElementById('chess-top-name').innerText = "Player 2 (Black)";
+                updateAvatarWithBadge('top-avatar-container', 'chess-top-avatar', `https://api.dicebear.com/7.x/avataaars/svg?seed=BlackPlayer`, 'Player');
+                return;
+            }
+
+            topBar.classList.remove('rotate-top-player');
+            document.getElementById('chess-bottom-name').innerText = currentUser.username;
+            updateAvatarWithBadge('bottom-avatar-container', 'chess-bottom-avatar', currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(sanitizeUser(currentUser.username))}`, currentUser.rankTitle || 'Player');
+
+            document.getElementById('chess-top-name').innerText = opponentName;
+            if (isPlayingBot) {
+                updateAvatarWithBadge('top-avatar-container', 'chess-top-avatar', 'https://api.dicebear.com/7.x/bottts/svg?seed=BOT', 'BOT');
+            } else {
+                const opKey = sanitizeUser(opponentName);
+                db.ref('users/' + opKey).once('value', snapshot => {
+                    const opData = snapshot.val();
+                    const avatar = (opData && opData.avatar) ? opData.avatar : `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(opKey)}`;
+                    const rank = (opData && opData.rankTitle) ? opData.rankTitle : 'Player';
+                    updateAvatarWithBadge('top-avatar-container', 'chess-top-avatar', avatar, rank);
+                });
+            }
+        }
+
+        function startBotMatch() {
+            if(activeGameRef) {
+                activeGameRef.off();
+                activeGameRef = null;
+            }
+            isPlayingBot = true;
+            isPassAndPlay = false;
+            playerColor = 'w';
+            opponentName = `BOT (${botDifficulty.toUpperCase()})`;
+            document.body.classList.add('in-game');
+            document.getElementById('play-options-card').style.display = 'none';
+            document.getElementById('btn-open-chat').style.display = 'none';
+            closeOnlinePlayersSection();
+            document.getElementById('game-arena').style.display = 'block';
+
+            chessGame = new Chess();
+            isGameOver = false;
+            selectedSquare = null;
+            
+            setupPlayerUI();
+            document.getElementById('game-over-modal').style.display = 'none';
+
+            resetChessClocks();
+            initBoardDOM();
+            renderBoard();
+        }
+
+        function startPassAndPlayMatch() {
+            if(activeGameRef) {
+                activeGameRef.off();
+                activeGameRef = null;
+            }
+            isPlayingBot = false;
+            isPassAndPlay = true;
+            playerColor = 'w';
+            opponentName = "Player 2";
+            document.body.classList.add('in-game');
+            document.getElementById('play-options-card').style.display = 'none';
+            document.getElementById('btn-open-chat').style.display = 'none';
+            closeOnlinePlayersSection();
+            document.getElementById('game-arena').style.display = 'block';
+
+            chessGame = new Chess();
+            isGameOver = false;
+            selectedSquare = null;
+            
+            setupPlayerUI();
+            document.getElementById('game-over-modal').style.display = 'none';
+
+            resetChessClocks();
+            initBoardDOM();
+            renderBoard();
+        }
+
+        function exitGameToHome() {
+            if (!isPlayingBot && !isPassAndPlay && activeGameRef && !isGameOver) {
+                isGameOver = true;
+                const winnerColor = playerColor === 'w' ? 'b' : 'w';
+                const winnerName = opponentName;
+                activeGameRef.update({
+                    status: 'abandoned',
+                    abandonedBy: playerColor,
+                    winner: winnerColor,
+                    winnerName: winnerName
+                });
+            }
+            document.body.classList.remove('in-game');
+            document.getElementById('game-arena').style.display = 'none';
+            document.getElementById('play-options-card').style.display = 'block';
+            clearInterval(chessTimerInterval);
+            if(activeGameRef) {
+                activeGameRef.off();
+                activeGameRef = null;
+            }
+            if(chatRef) {
+                chatRef.off();
+                chatRef = null;
+            }
+            toggleChatDrawer(false);
+            document.getElementById('promotion-overlay').style.display = 'none';
+            pendingPromotion = null;
+        }
+
+        function setBotDifficulty(diff) {
+            botDifficulty = diff;
+            document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('diff-' + diff).classList.add('active');
+        }
+
+        function resetChessClocks() {
+            clearInterval(chessTimerInterval);
+            whiteTime = 600; blackTime = 600;
+            lastMoveTime = Date.now();
+            updateTimerDisplay();
+
+            chessTimerInterval = setInterval(() => {
+                if(isGameOver) return;
+
+                const now = Date.now();
+                const elapsed = Math.floor((now - (lastMoveTime || now)) / 1000);
+                const currentTurn = chessGame ? chessGame.turn() : 'w';
+
+                let currentWhite = whiteTime;
+                let currentBlack = blackTime;
+
+                if (currentTurn === 'w') {
+                    currentWhite = Math.max(0, whiteTime - elapsed);
+                    if (currentWhite <= 0) handleTimeOut('w');
+                } else {
+                    currentBlack = Math.max(0, blackTime - elapsed);
+                    if (currentBlack <= 0) handleTimeOut('b');
+                }
+
+                updateTimerDisplayAccurate(currentWhite, currentBlack);
+            }, 1000);
+        }
+
+        function updateTimerDisplayAccurate(wSec, bSec) {
+            const format = (s) => {
+                const val = isNaN(s) ? 600 : Math.max(0, s);
+                const m = Math.floor(val / 60); 
+                const sec = Math.floor(val % 60);
+                return `${m < 10 ? '0' : ''}${m}:${sec < 10 ? '0' : ''}${sec}`;
+            };
+            const tTop = document.getElementById('timer-top');
+            const tBot = document.getElementById('timer-bottom');
+            const pBarTop = document.getElementById('player-bar-top');
+            const pBarBottom = document.getElementById('player-bar-bottom');
+            const currentTurn = chessGame ? chessGame.turn() : 'w';
+
+            if (isPassAndPlay) {
+                tTop.innerText = format(bSec);
+                tBot.innerText = format(wSec);
+                
+                tBot.classList.toggle('timer-active', currentTurn === 'w');
+                pBarBottom.classList.toggle('turn-active', currentTurn === 'w');
+                
+                tTop.classList.toggle('timer-active', currentTurn === 'b');
+                pBarTop.classList.toggle('turn-active', currentTurn === 'b');
+                return;
+            }
+
+            if(playerColor === 'w') {
+                tTop.innerText = format(bSec);
+                tBot.innerText = format(wSec);
+                tBot.classList.toggle('timer-active', currentTurn === 'w');
+                pBarBottom.classList.toggle('turn-active', currentTurn === 'w');
+                tTop.classList.toggle('timer-active', currentTurn === 'b');
+                pBarTop.classList.toggle('turn-active', currentTurn === 'b');
+            } else {
+                tTop.innerText = format(wSec);
+                tBot.innerText = format(bSec);
+                tTop.classList.toggle('timer-active', currentTurn === 'w');
+                pBarTop.classList.toggle('turn-active', currentTurn === 'w');
+                tBot.classList.toggle('timer-active', currentTurn === 'b');
+                pBarBottom.classList.toggle('turn-active', currentTurn === 'b');
+            }
+        }
+
+        function updateTimerDisplay() {
+            updateTimerDisplayAccurate(whiteTime, blackTime);
+        }
+
+        function handleTimeOut(loser) {
+            isGameOver = true;
+            clearInterval(chessTimerInterval);
+            const winner = loser === 'w' ? 'Black Won' : 'White Won';
+            showStatusModal('TIMEOUT', `${winner}!`);
+            if(!isPassAndPlay && ((loser === 'b' && playerColor === 'w') || (loser === 'w' && playerColor === 'b'))) {
+                addWinToCurrentUser();
+            }
+        }
+
+        function initBoardDOM() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            squareElementsMap = {};
+
+            const isFlipped = (!isPassAndPlay && playerColor === 'b');
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const row = isFlipped ? r : 7 - r;
+                    const col = isFlipped ? 7 - c : c;
+                    const sq = files[col] + (row + 1);
+
+                    const squareDiv = document.createElement('div');
+                    squareDiv.className = `square ${(row + col) % 2 === 0 ? 'dark' : 'light'}`;
+                    squareDiv.dataset.square = sq;
+
+                    if (c === 0) {
+                        const rankSpan = document.createElement('span');
+                        rankSpan.className = 'coord-rank';
+                        rankSpan.innerText = row + 1;
+                        squareDiv.appendChild(rankSpan);
+                    }
+                    if (r === 7) {
+                        const fileSpan = document.createElement('span');
+                        fileSpan.className = 'coord-file';
+                        fileSpan.innerText = files[col];
+                        squareDiv.appendChild(fileSpan);
+                    }
+
+                    squareDiv.onclick = () => onSquareClick(sq);
+
+                    boardEl.appendChild(squareDiv);
+                    squareElementsMap[sq] = squareDiv;
+                }
+            }
+        }
+
+        function getKingSquare(color) {
+            const board = chessGame.board();
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece && piece.type === 'k' && piece.color === color) {
+                        return files[c] + (8 - r);
+                    }
+                }
+            }
+            return null;
+        }
+
+        function renderBoard() {
+            if (!chessGame) return;
+
+            // Clear Highlights & Dots
+            for (let sq in squareElementsMap) {
+                const sqDiv = squareElementsMap[sq];
+                sqDiv.classList.remove('selected', 'check-highlight');
+                const dot = sqDiv.querySelector('.move-dot, .capture-ring');
+                if (dot) dot.remove();
+            }
+
+            // Highlight King in Check
+            if (chessGame.in_check()) {
+                const kingSq = getKingSquare(chessGame.turn());
+                if (kingSq && squareElementsMap[kingSq]) {
+                    squareElementsMap[kingSq].classList.add('check-highlight');
+                }
+            }
+
+            // Highlight Selected Square & Valid Moves (if enabled)
+            if (selectedSquare) {
+                if (squareElementsMap[selectedSquare]) {
+                    squareElementsMap[selectedSquare].classList.add('selected');
+                }
+
+                if (showMoveHints) {
+                    const moves = chessGame.moves({ square: selectedSquare, verbose: true });
+                    moves.forEach(m => {
+                        const targetSqDiv = squareElementsMap[m.to];
+                        if (targetSqDiv) {
+                            if (m.captured || m.flags.includes('c') || m.flags.includes('e')) {
+                                const ring = document.createElement('div');
+                                ring.className = 'capture-ring';
+                                targetSqDiv.appendChild(ring);
+                            } else {
+                                const dot = document.createElement('div');
+                                dot.className = 'move-dot';
+                                targetSqDiv.appendChild(dot);
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Render Pieces
+            for (let sq in squareElementsMap) {
+                const squareDiv = squareElementsMap[sq];
+                const piece = chessGame.get(sq);
+                const currentPieceImg = squareDiv.querySelector('.piece');
+
+                if (piece) {
+                    const pieceKey = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
+                    const expectedSrc = PIECES_IMG[pieceKey];
+
+                    if (!currentPieceImg || currentPieceImg.dataset.pieceKey !== pieceKey) {
+                        if (currentPieceImg) currentPieceImg.remove();
+                        
+                        const pieceImg = document.createElement('img');
+                        pieceImg.src = expectedSrc;
+                        pieceImg.dataset.pieceKey = pieceKey;
+                        pieceImg.className = (isPassAndPlay && piece.color === 'b') ? 'piece piece-flipped' : 'piece';
+                        squareDiv.appendChild(pieceImg);
+                    }
+                } else {
+                    if (currentPieceImg) {
+                        currentPieceImg.remove();
+                    }
+                }
+            }
+        }
+
+        function onSquareClick(square) {
+            if (isGameOver || pendingPromotion) return;
+
+            // Turn Validation
+            if (!isPassAndPlay && chessGame.turn() !== playerColor) return;
+
+            if (selectedSquare) {
+                if (selectedSquare === square) {
+                    selectedSquare = null;
+                    renderBoard();
+                } else {
+                    const pieceOnTarget = chessGame.get(square);
+                    if (pieceOnTarget && pieceOnTarget.color === chessGame.turn()) {
+                        selectedSquare = square;
+                        renderBoard();
+                    } else {
+                        executeMove(selectedSquare, square);
+                    }
+                }
+            } else {
+                const piece = chessGame.get(square);
+                if (piece && piece.color === chessGame.turn()) {
+                    selectedSquare = square;
+                    renderBoard();
+                }
+            }
+        }
+
+        function executeMove(from, to, promotionPiece) {
+            const piece = chessGame.get(from);
+            const isPromotion = piece && piece.type === 'p' && ((piece.color === 'w' && to.endsWith('8')) || (piece.color === 'b' && to.endsWith('1')));
+
+            if(isPromotion && !promotionPiece) {
+                showPromotionDialog(from, to, piece.color);
+                return;
+            }
+
+            const moveObj = { from: from, to: to };
+            if(isPromotion || promotionPiece) moveObj.promotion = promotionPiece || 'q';
+
+            const now = Date.now();
+            const elapsed = Math.floor((now - (lastMoveTime || now)) / 1000);
+            if (chessGame.turn() === 'w') {
+                whiteTime = Math.max(0, whiteTime - elapsed);
+            } else {
+                blackTime = Math.max(0, blackTime - elapsed);
+            }
+            lastMoveTime = now;
+
+            const move = chessGame.move(moveObj);
+
+            if (move) {
+                if (move.captured) playSound('capture');
+                else playSound('move');
+
+                selectedSquare = null;
+
+                renderBoard();
+                updateTimerDisplay();
+
+                if(!isPlayingBot && !isPassAndPlay && activeGameRef) {
+                    activeGameRef.update({ 
+                        fen: chessGame.fen(), 
+                        lastMove: { from: from, to: to, promotion: moveObj.promotion || null },
+                        turn: chessGame.turn(),
+                        timers: {
+                            whiteTime: whiteTime,
+                            blackTime: blackTime,
+                            lastMoveTimestamp: Date.now()
+                        }
+                    });
+                }
+
+                checkGameStatus();
+
+                if (!isGameOver && isPlayingBot && chessGame.turn() === 'b') {
+                    setTimeout(makeBotMove, 50);
+                }
+            } else {
+                selectedSquare = null;
+                renderBoard();
+            }
+        }
+
+        function showPromotionDialog(from, to, color) {
+            pendingPromotion = { from, to };
+            const box = document.getElementById('promotion-box');
+            box.innerHTML = '';
+            ['q', 'r', 'b', 'n'].forEach(p => {
+                const opt = document.createElement('div');
+                opt.className = 'promotion-option';
+                opt.innerHTML = `<img src="${PIECES_IMG[color === 'w' ? p.toUpperCase() : p]}">`;
+                opt.onclick = () => {
+                    document.getElementById('promotion-overlay').style.display = 'none';
+                    const targetPromotion = pendingPromotion;
+                    pendingPromotion = null;
+                    executeMove(targetPromotion.from, targetPromotion.to, p);
+                };
+                box.appendChild(opt);
+            });
+            document.getElementById('promotion-overlay').style.display = 'flex';
+        }
+
+        // OPTIMIZED ULTRA-FAST BOT ENGINE (NO LAG)
+        const pieceValues = { 'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000 };
+
+        const pawnTable = [
+            0,  0,  0,  0,  0,  0,  0,  0,
+            50, 50, 50, 50, 50, 50, 50, 50,
+            10, 10, 20, 30, 30, 20, 10, 10,
+             5,  5, 10, 25, 25, 10,  5,  5,
+             0,  0,  0, 20, 20,  0,  0,  0,
+             5, -5,-10,  0,  0,-10, -5,  5,
+             5, 10, 10,-20,-20, 10, 10,  5,
+             0,  0,  0,  0,  0,  0,  0,  0
+        ];
+
+        const knightTable = [
+            -50,-40,-30,-30,-30,-30,-40,-50,
+            -40,-20,  0,  0,  0,  0,-20,-40,
+            -30,  0, 10, 15, 15, 10,  0,-30,
+            -30,  5, 15, 20, 20, 15,  5,-30,
+            -30,  0, 15, 20, 20, 15,  0,-30,
+            -30,  5, 10, 15, 15, 10,  5,-30,
+            -40,-20,  0,  5,  5,  0,-20,-40,
+            -50,-40,-30,-30,-30,-30,-40,-50
+        ];
+
+        function evaluateBoardFast(game) {
+            let total = 0;
+            const board = game.board();
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    if (p) {
+                        let val = pieceValues[p.type] || 0;
+                        const idx = r * 8 + c;
+                        if (p.type === 'p') val += (p.color === 'w' ? pawnTable[63 - idx] : pawnTable[idx]);
+                        else if (p.type === 'n') val += knightTable[idx];
+
+                        total += (p.color === 'w') ? val : -val;
+                    }
+                }
+            }
+            return total;
+        }
+
+        function minimaxOptimized(game, depth, alpha, beta, isMaximizing) {
+            if (depth === 0 || game.game_over()) {
+                return evaluateBoardFast(game);
+            }
+
+            const moves = game.moves({ verbose: true });
+            moves.sort((a, b) => (b.captured ? 1 : 0) - (a.captured ? 1 : 0));
+
+            if (isMaximizing) {
+                let maxEval = -99999;
+                for (let i = 0; i < moves.length; i++) {
+                    game.move(moves[i]);
+                    let evaluation = minimaxOptimized(game, depth - 1, alpha, beta, false);
+                    game.undo();
+                    maxEval = Math.max(maxEval, evaluation);
+                    alpha = Math.max(alpha, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = 99999;
+                for (let i = 0; i < moves.length; i++) {
+                    game.move(moves[i]);
+                    let evaluation = minimaxOptimized(game, depth - 1, alpha, beta, true);
+                    game.undo();
+                    minEval = Math.min(minEval, evaluation);
+                    beta = Math.min(beta, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function makeBotMove() {
+            if (isGameOver || !chessGame || chessGame.game_over()) return;
+            const moves = chessGame.moves({ verbose: true });
+            if (moves.length === 0) return;
+
+            if (botDifficulty === 'easy') {
+                const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                executeBotMove(randomMove);
+                return;
+            }
+
+            requestAnimationFrame(() => {
+                let depth = (botDifficulty === 'hard') ? 2 : 1;
+                let bestMove = moves[0];
+                let bestValue = 99999;
+
+                moves.sort((a, b) => (b.captured ? 1 : 0) - (a.captured ? 1 : 0));
+
+                for (let i = 0; i < moves.length; i++) {
+                    chessGame.move(moves[i]);
+                    let value = minimaxOptimized(chessGame, depth, -100000, 100000, true);
+                    chessGame.undo();
+
+                    if (value < bestValue) {
+                        bestValue = value;
+                        bestMove = moves[i];
+                    }
+                }
+
+                executeBotMove(bestMove);
+            });
+        }
+
+        function executeBotMove(bestMove) {
+            if (!bestMove) return;
+            if (bestMove.flags.includes('p') || bestMove.promotion) {
+                bestMove.promotion = 'q';
+            }
+
+            const now = Date.now();
+            const elapsed = Math.floor((now - (lastMoveTime || now)) / 1000);
+            blackTime = Math.max(0, blackTime - elapsed);
+            lastMoveTime = now;
+
+            const m = chessGame.move(bestMove);
+            if (m) {
+                if (m.captured) playSound('capture');
+                else playSound('move');
+                renderBoard();
+                checkGameStatus();
+            }
+        }
+
+        function checkGameStatus() {
+            if(!chessGame) return;
+            if (chessGame.in_checkmate()) {
+                isGameOver = true;
+                clearInterval(chessTimerInterval);
+                const winnerColor = chessGame.turn() === 'w' ? 'b' : 'w';
+                const winnerTitle = winnerColor === 'w' ? 'White Won' : 'Black Won';
+                playSound('check');
+                showStatusModal('CHECKMATE', `${winnerTitle}!`);
+                if(!isPassAndPlay && winnerColor === playerColor) addWinToCurrentUser();
+            } else if (
+                chessGame.in_stalemate() || 
+                chessGame.in_threefold_repetition() || 
+                chessGame.insufficient_material() || 
+                chessGame.in_draw()
+            ) {
+                isGameOver = true;
+                clearInterval(chessTimerInterval);
+                let drawReason = 'Draw';
+                if (chessGame.in_stalemate()) drawReason = 'Stalemate';
+                if (chessGame.insufficient_material()) drawReason = 'Insufficient Material';
+                showStatusModal('DRAW', `Game Draw (${drawReason})!`);
+            } else if (chessGame.in_check()) {
+                playSound('check');
+            }
+        }
+
+        function addWinToCurrentUser() {
+            if (!currentUser) return;
+            const u = sanitizeUser(currentUser.username);
+            currentUser.chessWins = (currentUser.chessWins || 0) + 1;
+            currentUser.coins = (currentUser.coins || 0) + 10;
+            if(db) db.ref('users/' + u).update({ chessWins: currentUser.chessWins, coins: currentUser.coins });
+            localStorage.setItem('aura_user', JSON.stringify(currentUser));
+            updateCoinsUI();
+        }
+
+        function showStatusModal(title, subtitle) {
+            document.getElementById('game-over-title').innerText = title;
+            document.getElementById('game-over-subtitle').innerText = subtitle;
+            document.getElementById('game-over-modal').style.display = 'flex';
+        }
+
+        // --- RESIGN REQUEST SYSTEM ---
+        function requestResign() {
+            if (isGameOver) return;
+
+            if (isPlayingBot || isPassAndPlay) {
+                document.getElementById('resign-modal').style.display = 'flex';
+                document.getElementById('txt-resign-desc').innerText = "Do you want to resign this match?";
+                document.getElementById('resign-modal-buttons').innerHTML = `
+                    <button class="btn-green" style="flex:1; background: var(--danger-color); box-shadow: 0 4px 0 #991b1b;" onclick="confirmResign()"><i class="fa-solid fa-check"></i> <span data-i18n="yes">Yes</span></button>
+                    <button class="btn-green btn-secondary" style="flex:1;" onclick="closeResignModal()"><i class="fa-solid fa-xmark"></i> <span data-i18n="no">No</span></button>
+                `;
+                return;
+            }
+
+            // Online Match Resign Request
+            if (activeGameRef) {
+                activeGameRef.child('resignRequest').set({
+                    from: playerColor,
+                    status: 'pending'
+                });
+                document.getElementById('resign-modal').style.display = 'flex';
+                document.getElementById('txt-resign-desc').innerText = translations[currentLanguage]['resign_request_sent'] || "Resign request sent to opponent. Waiting for confirmation...";
+                document.getElementById('resign-modal-buttons').innerHTML = `
+                    <button class="btn-green btn-secondary" style="flex:1;" onclick="cancelResignRequest()"><i class="fa-solid fa-xmark"></i> <span data-i18n="close">Cancel</span></button>
+                `;
+            }
+        }
+
+        function cancelResignRequest() {
+            if (activeGameRef) {
+                activeGameRef.child('resignRequest').remove();
+            }
+            closeResignModal();
+        }
+
+        function confirmResign() {
+            closeResignModal();
+            if (isPlayingBot || isPassAndPlay) {
+                isGameOver = true;
+                clearInterval(chessTimerInterval);
+                const winnerColor = playerColor === 'w' ? 'b' : 'w';
+                const winnerTitle = winnerColor === 'w' ? 'White Won' : 'Black Won';
+                showStatusModal('RESIGNED', `${winnerTitle} (Resignation)!`);
+                return;
+            }
+
+            if (activeGameRef) {
+                const winnerColor = playerColor === 'w' ? 'b' : 'w';
+                activeGameRef.update({
+                    status: 'resigned',
+                    resignedBy: playerColor,
+                    winner: winnerColor,
+                    winnerName: opponentName
+                });
+            }
+        }
+
+        function closeResignModal() {
+            document.getElementById('resign-modal').style.display = 'none';
+        }
+
+        function handleIncomingResignRequest(req) {
+            if (!req || req.status !== 'pending' || req.from === playerColor) return;
+            document.getElementById('resign-modal').style.display = 'flex';
+            document.getElementById('txt-resign-desc').innerText = `${opponentName} has requested to resign the match. Do you accept?`;
+            document.getElementById('resign-modal-buttons').innerHTML = `
+                <button class="btn-green" style="flex:1;" onclick="acceptResignRequest()"><i class="fa-solid fa-check"></i> <span data-i18n="accept">Accept</span></button>
+                <button class="btn-green btn-secondary" style="flex:1;" onclick="declineResignRequest()"><i class="fa-solid fa-xmark"></i> <span data-i18n="deny">Deny</span></button>
+            `;
+        }
+
+        function acceptResignRequest() {
+            closeResignModal();
+            if (activeGameRef) {
+                const winnerColor = playerColor;
+                activeGameRef.update({
+                    status: 'resigned',
+                    resignedBy: playerColor === 'w' ? 'b' : 'w',
+                    winner: winnerColor,
+                    winnerName: currentUser.username
+                });
+            }
+        }
+
+        function declineResignRequest() {
+            closeResignModal();
+            if (activeGameRef) {
+                activeGameRef.child('resignRequest').update({ status: 'declined' });
+            }
+        }
+
+        function toggleChatDrawer(show) {
+            document.getElementById('chat-overlay').style.display = show ? 'block' : 'none';
+            document.getElementById('chat-drawer').classList.toggle('open', show);
+            if(show) {
+                unreadChatCount = 0;
+                document.getElementById('chat-unread-badge').style.display = 'none';
+                const body = document.getElementById('chat-messages-container');
+                body.scrollTop = body.scrollHeight;
+            }
+        }
+
+        function listenToChat(gameId) {
+            chatRef = db.ref('chats/' + gameId);
+            chatRef.on('child_added', snapshot => {
+                const msg = snapshot.val();
+                if(msg) {
+                    appendChatMessage(msg);
+                    const isOpen = document.getElementById('chat-drawer').classList.contains('open');
+                    if(!isOpen && msg.sender !== currentUser.username) {
+                        unreadChatCount++;
+                        const badge = document.getElementById('chat-unread-badge');
+                        badge.innerText = unreadChatCount;
+                        badge.style.display = 'inline-block';
+                    }
+                }
+            });
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input-text');
+            const text = input.value.trim();
+            if(!text || !chatRef) return;
+
+            chatRef.push({
+                sender: currentUser.username,
+                text: text,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            input.value = '';
+        }
+
+        function appendChatMessage(msg) {
+            const body = document.getElementById('chat-messages-container');
+            const msgDiv = document.createElement('div');
+            const isMine = msg.sender === currentUser.username;
+            msgDiv.className = `chat-msg ${isMine ? 'mine' : 'other'}`;
+            msgDiv.innerHTML = `<strong>${isMine ? 'You' : escapeHTML(msg.sender)}:</strong> ${escapeHTML(msg.text)}`;
+            body.appendChild(msgDiv);
+            body.scrollTop = body.scrollHeight;
+        }
+
+        function loadOnlineFriends() {
+            const list = document.getElementById('online-friends-list');
+            list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-secondary);"><i class="fa-solid fa-spinner fa-spin"></i> Loading players...</div>';
+
+            db.ref('presence').once('value', snapshot => {
+                list.innerHTML = '';
+                const users = snapshot.val();
+                let count = 0;
+
+                if (users) {
+                    Object.keys(users).forEach(key => {
+                        const userObj = users[key];
+                        if (userObj && userObj.username && currentUser && userObj.username.toLowerCase() !== currentUser.username.toLowerCase()) {
+                            count++;
+                            const targetKey = sanitizeUser(userObj.username);
+                            const cooldownLeft = Math.ceil(((inviteCooldowns[targetKey] || 0) - Date.now()) / 1000);
+                            const card = document.createElement('div');
+                            card.className = 'online-user-card';
+                            card.innerHTML = `
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <span class="online-status-dot"></span>
+                                    <div class="avatar-container">
+                                        <img class="user-avatar" src="${userObj.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(targetKey)}`}">
+                                        ${getVBadgeHTML(userObj.rankTitle)}
+                                    </div>
+                                    <span style="font-weight:700;">${escapeHTML(userObj.username)}</span>
+                                </div>
+                                <button class="btn-green" style="width:auto; padding:8px 16px; font-size:12px;" 
+                                    id="btn-invite-${targetKey}" 
+                                    ${cooldownLeft > 0 ? 'disabled style="opacity:0.5"' : ''} 
+                                    onclick="sendChallenge('${escapeHTML(userObj.username)}')">
+                                    ${cooldownLeft > 0 ? `Wait ${cooldownLeft}s` : 'Challenge'}
+                                </button>
+                            `;
+                            list.appendChild(card);
+                        }
+                    });
+                }
+                if (count === 0) list.innerHTML = '<p style="text-align:center; color:var(--text-secondary); margin-top:20px;">No online players found!</p>';
+            });
+        }
+
+        function sendChallenge(targetUser) {
+            const targetKey = sanitizeUser(targetUser);
+            const now = Date.now();
+            if (inviteCooldowns[targetKey] && inviteCooldowns[targetKey] > now) return;
+
+            inviteCooldowns[targetKey] = now + 10000;
+            const gameId = 'game_' + Date.now();
+            const randomColor = Math.random() < 0.5 ? 'w' : 'b';
+
+            db.ref('invites/' + targetKey).set({
+                from: currentUser.username,
+                gameId: gameId,
+                status: 'pending',
+                challengerColor: randomColor
+            });
+
+            const myKey = sanitizeUser(currentUser.username);
+            db.ref('invites/' + myKey).set({
+                status: 'waiting',
+                gameId: gameId,
+                challengerColor: randomColor,
+                to: targetUser
+            });
+
+            loadOnlineFriends();
+        }
+
+        function startOnlineGame(gameId, color, opponent) {
+            isPlayingBot = false;
+            isPassAndPlay = false;
+            playerColor = color; 
+            opponentName = opponent;
+
+            document.body.classList.add('in-game');
+            document.getElementById('play-options-card').style.display = 'none';
+            document.getElementById('btn-open-chat').style.display = 'flex';
+            closeOnlinePlayersSection();
+            document.getElementById('game-arena').style.display = 'block';
+
+            chessGame = new Chess();
+            isGameOver = false;
+
+            setupPlayerUI();
+            document.getElementById('game-over-modal').style.display = 'none';
+
+            if (activeGameRef) activeGameRef.off();
+            activeGameRef = db.ref('matches/' + gameId);
+            
+            document.getElementById('chat-messages-container').innerHTML = '';
+            listenToChat(gameId);
+
+            activeGameRef.transaction((currentData) => {
+                if (currentData === null) {
+                    return {
+                        fen: chessGame.fen(),
+                        turn: 'w',
+                        status: 'playing',
+                        timers: {
+                            whiteTime: 600,
+                            blackTime: 600,
+                            lastMoveTimestamp: Date.now()
+                        }
+                    };
+                }
+                return currentData;
+            });
+
+            activeGameRef.onDisconnect().update({
+                status: 'abandoned',
+                abandonedBy: playerColor,
+                winner: playerColor === 'w' ? 'b' : 'w',
+                winnerName: opponent
+            });
+
+            activeGameRef.on('value', snapshot => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                if (data.resignRequest) {
+                    if (data.resignRequest.status === 'declined' && data.resignRequest.from === playerColor) {
+                        alert(translations[currentLanguage]['resign_declined'] || "Opponent declined your resignation request!");
+                        activeGameRef.child('resignRequest').remove();
+                        closeResignModal();
+                    } else {
+                        handleIncomingResignRequest(data.resignRequest);
+                    }
+                }
+
+                if (data.status === 'resigned' && !isGameOver) {
+                    isGameOver = true;
+                    clearInterval(chessTimerInterval);
+                    const winText = data.winner === 'w' ? 'White Won' : 'Black Won';
+                    showStatusModal('RESIGNED', `${winText} (Resignation)!`);
+                    if (data.winner === playerColor) addWinToCurrentUser();
+                    return;
+                }
+
+                if (data.status === 'abandoned' && !isGameOver) {
+                    isGameOver = true;
+                    clearInterval(chessTimerInterval);
+                    const winText = data.winner === 'w' ? 'White Won' : 'Black Won';
+                    showStatusModal('VICTORY', `${winText} (Opponent Left)!`);
+                    if (data.winner === playerColor) addWinToCurrentUser();
+                    return;
+                }
+
+                if (data.fen && chessGame && chessGame.fen() !== data.fen) {
+                    chessGame.load(data.fen);
+                    if (data.timers) {
+                        whiteTime = data.timers.whiteTime;
+                        blackTime = data.timers.blackTime;
+                        lastMoveTime = data.timers.lastMoveTimestamp;
+                    }
+                    renderBoard();
+                    updateTimerDisplay();
+                    checkGameStatus();
+                }
+            });
+
+            resetChessClocks();
+            initBoardDOM();
+            renderBoard();
+        }
+
+        function loadChessLeaderboard() {
+            const podium = document.getElementById('chess-lb-podium');
+            const list = document.getElementById('chess-lb-list');
+            podium.innerHTML = '<p style="color: var(--text-secondary);">Loading leaderboard...</p>';
+            list.innerHTML = '';
+
+            db.ref('users').orderByChild('chessWins').limitToLast(10).once('value', snapshot => {
+                podium.innerHTML = '';
+                list.innerHTML = '';
+                let users = [];
+
+                snapshot.forEach(child => {
+                    users.push(child.val());
+                });
+
+                users.sort((a, b) => (b.chessWins || 0) - (a.chessWins || 0));
+
+                if (users.length === 0) {
+                    podium.innerHTML = '<p style="color: var(--text-secondary);">No players found.</p>';
+                    return;
+                }
+
+                users.slice(0, 3).forEach((u, i) => {
+                    const rank = i + 1;
+                    const card = document.createElement('div');
+                    card.className = `podium-card rank-${rank}`;
+                    card.innerHTML = `
+                        <i class="fa-solid fa-crown crown-icon"></i>
+                        <div class="avatar-container">
+                            <img class="podium-avatar" src="${u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(sanitizeUser(u.username))}`}">
+                            ${getVBadgeHTML(u.rankTitle)}
+                        </div>
+                        <div class="podium-name">${escapeHTML(u.username)}</div>
+                        <div class="rank-badge">${escapeHTML(u.rankTitle || 'Player')}</div>
+                        <div class="podium-score">${u.chessWins || 0} Wins</div>
+                    `;
+                    podium.appendChild(card);
+                });
+
+                users.slice(3).forEach((u, i) => {
+                    const card = document.createElement('div');
+                    card.className = 'lb-card';
+                    card.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div class="lb-rank-num">#${i + 4}</div>
+                            <div class="avatar-container">
+                                <img class="user-avatar" src="${u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(sanitizeUser(u.username))}`}">
+                                ${getVBadgeHTML(u.rankTitle)}
+                            </div>
+                            <div>
+                                <span style="font-weight:700;">${escapeHTML(u.username)}</span>
+                                <div class="rank-badge" style="display:inline-block; margin-top:2px;">${escapeHTML(u.rankTitle || 'Player')}</div>
+                            </div>
+                        </div>
+                        <div style="font-weight:800; color:var(--chess-green);">${u.chessWins || 0} Wins</div>
+                    `;
+                    list.appendChild(card);
+                });
+            });
+        }
+
+        /* --- LIVE INTERACTIVE ANIMATED DEMO SYSTEM --- */
+        let demoGame = null;
+        let demoInterval = null;
+        let demoCurrentStep = 0;
+        let currentTopic = 'pawn';
+        let demoSquareMap = {};
+
+        const DEMO_TOPICS = {
+            'pawn': {
+                titleKey: 'demo_pawn_head',
+                headKey: 'learn_pawn_h3',
+                icon: 'fa-chess-pawn',
+                descKey: 'learn_pawn_desc',
+                tipKey: 'learn_pawn_tip',
+                moves: [
+                    { from: 'e2', to: 'e4', comment: 'White moves Pawn 2 squares forward on its first move.' },
+                    { from: 'e7', to: 'e5', comment: 'Black responds by moving Pawn 2 squares forward.' },
+                    { from: 'd2', to: 'd4', comment: 'White pushes d-pawn to challenge the center.' },
+                    { from: 'e5', to: 'd4', comment: 'Black Pawn captures White Pawn diagonally!' }
+                ]
+            },
+            'knight': {
+                titleKey: 'demo_knight_head',
+                headKey: 'learn_knight_h3',
+                icon: 'fa-chess-knight',
+                descKey: 'learn_knight_desc',
+                tipKey: 'learn_knight_tip',
+                moves: [
+                    { from: 'g1', to: 'f3', comment: 'Knight jumps over pawns to f3, controlling center squares e5 and d4.' },
+                    { from: 'b8', to: 'c6', comment: 'Black Knight jumps out to c6 to protect the e5 pawn.' }
+                ]
+            },
+            'bishop': {
+                titleKey: 'demo_bishop_head',
+                headKey: 'learn_bishop_h3',
+                icon: 'fa-chess-bishop',
+                descKey: 'learn_bishop_desc',
+                tipKey: 'learn_bishop_tip',
+                moves: [
+                    { from: 'e2', to: 'e4', comment: 'White opens with e4 pawn to clear the path for the Light-squared Bishop.' },
+                    { from: 'e7', to: 'e5', comment: 'Black opens e5 to mirror.' },
+                    { from: 'f1', to: 'c4', comment: 'Bishop moves diagonally to c4, aiming right at Black f7 pawn!' }
+                ]
+            },
+            'rook': {
+                titleKey: 'demo_rook_head',
+                headKey: 'learn_rook_h3',
+                icon: 'fa-chess-rook',
+                descKey: 'learn_rook_desc',
+                tipKey: 'learn_rook_tip',
+                moves: [
+                    { from: 'a2', to: 'a4', comment: 'White pushes a-pawn.' },
+                    { from: 'h7', to: 'h5', comment: 'Black pushes h-pawn.' },
+                    { from: 'a1', to: 'a3', comment: 'Rook slides vertically up to a3!' },
+                    { from: 'a3', to: 'g3', comment: 'Rook slides horizontally across to g3!' }
+                ]
+            },
+            'queen': {
+                titleKey: 'demo_queen_head',
+                headKey: 'learn_queen_h3',
+                icon: 'fa-chess-queen',
+                descKey: 'learn_queen_desc',
+                tipKey: 'learn_queen_tip',
+                moves: [
+                    { from: 'e2', to: 'e4', comment: 'White opens with e4 pawn.' },
+                    { from: 'e7', to: 'e5', comment: 'Black plays e5.' },
+                    { from: 'd1', to: 'h5', comment: 'Queen zooms diagonally all the way to h5!' }
+                ]
+            },
+            'castling': {
+                titleKey: 'demo_castling_head',
+                headKey: 'learn_castling_h3',
+                icon: 'fa-wand-magic-sparkles',
+                descKey: 'learn_castling_desc',
+                tipKey: 'learn_castling_tip',
+                moves: [
+                    { from: 'e2', to: 'e4', comment: 'Clearing pawn...' },
+                    { from: 'e7', to: 'e5', comment: 'Black pawn move...' },
+                    { from: 'g1', to: 'f3', comment: 'Developing Knight...' },
+                    { from: 'b8', to: 'c6', comment: 'Black Knight develops...' },
+                    { from: 'f1', to: 'c4', comment: 'Clearing Bishop...' },
+                    { from: 'g8', to: 'f6', comment: 'Black Knight develops...' },
+                    { from: 'e1', to: 'g1', comment: 'CASTLING! King jumps to g1 and Rook hops over to f1!' }
+                ]
+            },
+            'scholar': {
+                titleKey: 'demo_scholar_head',
+                headKey: 'learn_scholar_h3',
+                icon: 'fa-trophy',
+                descKey: 'learn_scholar_desc',
+                tipKey: 'learn_scholar_tip',
+                moves: [
+                    { from: 'e2', to: 'e4', comment: '1. White opens e4.' },
+                    { from: 'e7', to: 'e5', comment: '1... Black plays e5.' },
+                    { from: 'f1', to: 'c4', comment: '2. White Bishop attacks f7!' },
+                    { from: 'b8', to: 'c6', comment: '2... Black develops Knight.' },
+                    { from: 'd1', to: 'h5', comment: '3. White Queen attacks f7 too!' },
+                    { from: 'g8', to: 'f6', comment: '3... Black makes a mistake!' },
+                    { from: 'h5', to: 'f7', comment: '4. CHECKMATE! Queen takes f7 with Bishop support. Game over!' }
+                ]
+            }
+        };
+
+        function initDemoBoard() {
+            const boardEl = document.getElementById('demo-board');
+            boardEl.innerHTML = '';
+            demoSquareMap = {};
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const row = 7 - r;
+                    const col = c;
+                    const sq = files[col] + (row + 1);
+
+                    const squareDiv = document.createElement('div');
+                    squareDiv.className = `square ${(row + col) % 2 === 0 ? 'dark' : 'light'}`;
+                    squareDiv.dataset.square = sq;
+
+                    boardEl.appendChild(squareDiv);
+                    demoSquareMap[sq] = squareDiv;
+                }
+            }
+
+            demoGame = new Chess();
+            demoCurrentStep = 0;
+            renderDemoBoard();
+            updateDemoUI();
+        }
+
+        function updateTopicContent(topic) {
+            const topicData = DEMO_TOPICS[topic];
+            const dict = translations[currentLanguage] || translations['en'];
+            
+            document.getElementById('demo-title-text').innerHTML = `<i class='fa-solid fa-circle-play'></i> <span>${dict[topicData.titleKey] || topicData.titleKey}</span>`;
+            document.getElementById('learn-topic-head').innerHTML = `<i class='fa-solid ${topicData.icon}'></i> <span>${dict[topicData.headKey] || topicData.headKey}</span>`;
+            document.getElementById('learn-topic-desc').innerText = dict[topicData.descKey] || topicData.descKey;
+            document.getElementById('learn-topic-tip').innerHTML = `<strong data-i18n="pro_tip">${dict['pro_tip'] || 'Pro Tip:'}</strong> ${dict[topicData.tipKey] || topicData.tipKey}`;
+        }
+
+        function selectDemoTopic(topic) {
+            currentTopic = topic;
+            document.querySelectorAll('.topic-chip').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+
+            resetDemo();
+            updateTopicContent(topic);
+        }
+
+        function renderDemoBoard(highlightMove = null) {
+            if (!demoGame) return;
+
+            for (let sq in demoSquareMap) {
+                const sqDiv = demoSquareMap[sq];
+                sqDiv.classList.remove('selected', 'check-highlight');
+                const dot = sqDiv.querySelector('.move-dot, .capture-ring');
+                if (dot) dot.remove();
+            }
+
+            if (highlightMove) {
+                if (demoSquareMap[highlightMove.from]) demoSquareMap[highlightMove.from].classList.add('selected');
+                if (demoSquareMap[highlightMove.to]) {
+                    const ring = document.createElement('div');
+                    ring.className = 'capture-ring';
+                    demoSquareMap[highlightMove.to].appendChild(ring);
+                }
+            }
+
+            for (let sq in demoSquareMap) {
+                const squareDiv = demoSquareMap[sq];
+                const piece = demoGame.get(sq);
+                const currentPieceImg = squareDiv.querySelector('.piece');
+
+                if (piece) {
+                    const pieceKey = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
+                    const expectedSrc = PIECES_IMG[pieceKey];
+
+                    if (!currentPieceImg || currentPieceImg.dataset.pieceKey !== pieceKey) {
+                        if (currentPieceImg) currentPieceImg.remove();
+                        const pieceImg = document.createElement('img');
+                        pieceImg.src = expectedSrc;
+                        pieceImg.dataset.pieceKey = pieceKey;
+                        pieceImg.className = 'piece';
+                        squareDiv.appendChild(pieceImg);
+                    }
+                } else {
+                    if (currentPieceImg) currentPieceImg.remove();
+                }
+            }
+        }
+
+        function updateDemoUI() {
+            const topicData = DEMO_TOPICS[currentTopic];
+            const totalSteps = topicData.moves.length;
+            document.getElementById('demo-step-counter').innerText = `Step ${demoCurrentStep}/${totalSteps}`;
+
+            const dict = translations[currentLanguage] || translations['en'];
+
+            if (demoCurrentStep > 0 && demoCurrentStep <= totalSteps) {
+                const lastMove = topicData.moves[demoCurrentStep - 1];
+                document.getElementById('demo-status-text').innerText = lastMove.comment;
+            } else if (demoCurrentStep === 0) {
+                document.getElementById('demo-status-text').innerText = dict['demo_start_prompt'] || "Click Play to start the animated live video guide!";
+            } else {
+                document.getElementById('demo-status-text').innerText = dict['demo_completed'] || "Demo complete! Click Reset to watch again.";
+            }
+        }
+
+        function playPauseDemo() {
+            if (demoInterval) {
+                clearInterval(demoInterval);
+                demoInterval = null;
+                document.getElementById('demo-play-icon').className = "fa-solid fa-play";
+                document.getElementById('demo-play-text').innerText = "Resume Demo";
+            } else {
+                document.getElementById('demo-play-icon').className = "fa-solid fa-pause";
+                document.getElementById('demo-play-text').innerText = "Pause Demo";
+                
+                demoInterval = setInterval(() => {
+                    const topicData = DEMO_TOPICS[currentTopic];
+                    if (demoCurrentStep < topicData.moves.length) {
+                        const m = topicData.moves[demoCurrentStep];
+                        demoGame.move({ from: m.from, to: m.to });
+                        demoCurrentStep++;
+                        playSound('move');
+                        renderDemoBoard(m);
+                        updateDemoUI();
+                    } else {
+                        clearInterval(demoInterval);
+                        demoInterval = null;
+                        document.getElementById('demo-play-icon').className = "fa-solid fa-rotate-right";
+                        document.getElementById('demo-play-text').innerText = "Replay";
+                    }
+                }, 1800);
+            }
+        }
+
+        function resetDemo() {
+            if (demoInterval) {
+                clearInterval(demoInterval);
+                demoInterval = null;
+            }
+            demoGame = new Chess();
+            demoCurrentStep = 0;
+            document.getElementById('demo-play-icon').className = "fa-solid fa-play";
+            document.getElementById('demo-play-text').innerText = "Play Demo";
+            renderDemoBoard();
+            updateDemoUI();
+        }
+    </script>
+</body>
+</html>
